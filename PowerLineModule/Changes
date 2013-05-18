@@ -1,0 +1,6 @@
+Revision history for Perl extension PowerLineModule.
+
+0.01  Sat Aug 11 16:07:53 2012
+	- original version; created by h2xs 1.23 with options
+		'--cpp-flags=-DLINUX32 -I../mod_w5xdInsteon/api' -x /home/ww/Documents/projects/httpd/mod_w5xdInsteon/api/PowerLineModule.h
+

@@ -1,0 +1,29 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 10.00
+# Visual Studio 2008
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "PlmTest", "PlmTest\PlmTest.vcproj", "{ACFFB378-F161-44D5-808D-4443C53FAF95}"
+	ProjectSection(ProjectDependencies) = postProject
+		{CA5A93F7-D14D-43A1-B0A2-B31CAC4F24F3} = {CA5A93F7-D14D-43A1-B0A2-B31CAC4F24F3}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "w5xdInsteon", "impl\w5xdInsteon.vcproj", "{CA5A93F7-D14D-43A1-B0A2-B31CAC4F24F3}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{ACFFB378-F161-44D5-808D-4443C53FAF95}.Debug|Win32.ActiveCfg = Debug|Win32
+		{ACFFB378-F161-44D5-808D-4443C53FAF95}.Debug|Win32.Build.0 = Debug|Win32
+		{ACFFB378-F161-44D5-808D-4443C53FAF95}.Release|Win32.ActiveCfg = Release|Win32
+		{ACFFB378-F161-44D5-808D-4443C53FAF95}.Release|Win32.Build.0 = Release|Win32
+		{CA5A93F7-D14D-43A1-B0A2-B31CAC4F24F3}.Debug|Win32.ActiveCfg = Debug|Win32
+		{CA5A93F7-D14D-43A1-B0A2-B31CAC4F24F3}.Debug|Win32.Build.0 = Debug|Win32
+		{CA5A93F7-D14D-43A1-B0A2-B31CAC4F24F3}.Release|Win32.ActiveCfg = Release|Win32
+		{CA5A93F7-D14D-43A1-B0A2-B31CAC4F24F3}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
