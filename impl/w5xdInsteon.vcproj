@@ -297,14 +297,6 @@
 				>
 			</File>
 		</Filter>
-		<Filter
-			Name="log"
-			>
-			<File
-				RelativePath="..\..\htdocs\insteon\logfile.txt"
-				>
-			</File>
-		</Filter>
 	</Files>
 	<Globals>
 	</Globals>
