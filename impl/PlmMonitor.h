@@ -62,9 +62,9 @@ namespace w5xdInsteon {
         T *getDeviceAccess(const char *addr);
 
         // C callable dimmer--access by string name
-        Dimmer *PlmMonitor::getDimmerAccess(const char *addr)
+        Dimmer *getDimmerAccess(const char *addr)
         {return getDeviceAccess<Dimmer>(addr);}
-        Keypad *PlmMonitor::getKeypadAccess(const char *addr)
+        Keypad *getKeypadAccess(const char *addr)
         {return getDeviceAccess<Keypad>(addr);}
 
         boost::shared_ptr<InsteonCommand> 
