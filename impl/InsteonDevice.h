@@ -31,6 +31,7 @@ std::ostream & operator << (std::ostream &os, const InsteonDeviceAddr &dev);
 class InsteonLinkEntry
 {
 public:
+    static const unsigned char CONTROLLER_FLAG;
     InsteonLinkEntry(): m_flag(0), m_group(0), m_LinkSpecific1(0), m_LinkSpecific2(0), m_LinkSpecific3(0){}
     InsteonLinkEntry(const unsigned char *v)
     {
@@ -54,19 +55,19 @@ public:
 class InsteonDevice
 {
 public:
-    typedef enum {DEVICE_UNKNOWN, DEVICE_DIMMER} DeviceType_t;
     enum {START_BYTE=0, MODEM_BYTE= 1, FROM_ADDR_START=2, TO_ADDR_START= 5, FLAG_BYTE= 8,
         COMMAND1=9, COMMAND2=10};
     enum {BROADCAST_BIT = 0x80, GROUP_BIT=0x40, ACK_BIT=0x20, EXTMSG_BIT=0x10};
 
-    InsteonDevice(PlmMonitor *p, const unsigned char addr[3], DeviceType_t type = DEVICE_UNKNOWN);
+    InsteonDevice(PlmMonitor *p, const unsigned char addr[3]);
     virtual ~InsteonDevice(){}
     bool operator < (const InsteonDevice &) const;
     virtual void incomingMessage(const std::vector<unsigned char> &, boost::shared_ptr<InsteonCommand>);
 
     int linkAsController(unsigned char group);
+    int unLinkAsController(unsigned char group);
     int startGatherLinkTable();
-    int numberOfLinks()const;
+    int numberOfLinks(int msecToWait = 5000)const;
     int printLinkTable() const;
     int extendedGet(unsigned char btn, unsigned char *pBuf, unsigned bufSize);
     int printExtendedGet(unsigned char btn)const;
@@ -77,7 +78,7 @@ public:
     bool linktableComplete()const{boost::mutex::scoped_lock l(m_mutex); return m_LinkTableComplete;}
 
     // remove links for isController true, or, for false, with matching ls3, or, if ls3 is zero, all values of ls3
-    int removeLinks(const InsteonDeviceAddr &addr, unsigned char group, bool isController, unsigned char ls3);
+    int removeLinks(const InsteonDeviceAddr &addr, unsigned char group, bool amController, unsigned char ls3);
 
     int createLink(InsteonDevice *responder, unsigned char group,
                                unsigned char ls1, unsigned char ls2, unsigned char ls3);
@@ -85,17 +86,16 @@ public:
     // returns 0 on success, houseCode is from 'A' to 'P', and unit is from 1 to 16.
     int getX10Code(char &houseCode, unsigned char &unit, unsigned char btn=1) const;
 
+
     const InsteonDeviceAddr &addr()const{return m_addr;}
     int getProductData();
-    const DeviceType_t m_type;
-    static DeviceType_t getClassDeviceType(){return DEVICE_UNKNOWN;}
 protected:
+    int sendExtendedCommand(unsigned char button, unsigned char d2, unsigned char d3=0, unsigned char d4=0);
     int linkAddr(const InsteonDeviceAddr &dev, unsigned char grp, bool isControl, unsigned char ls3)const;
     bool amRespondingTo(const InsteonDeviceAddr &dev, unsigned char grp)const; 
     void reqAllLinkData(unsigned addr); // addr == 0 means all records. Otherwise just the record at that addr
     // same range of legal values as getX10Code
     int setX10Code(char houseCode, unsigned char unit, unsigned char btn=1);
-    int sendExtendedCommand(unsigned char button, unsigned char d2, unsigned char d3, unsigned char d4);
 
     mutable boost::mutex    m_mutex;
     mutable boost::condition_variable   m_condition;
@@ -106,6 +106,7 @@ protected:
     std::set<unsigned> m_UnusedLinks;
     bool m_requestedOneLink;
     unsigned m_finalAddr;
+    unsigned m_lastAcqCommand1;
     typedef std::map<unsigned char, std::vector<unsigned char> > ExtendedGetResults_t;
     ExtendedGetResults_t m_ExtendedGetResult;
     std::vector<unsigned char> m_productData;
@@ -113,6 +114,7 @@ protected:
     static const char X10HouseLetterToCode[16];//subtract 'A' from letter to index into this table
     static const char X10WheelCodeToBits[17]; // wheel codes 1 through 16 are valid
     static const char X10BitsToWheelCode[16]; // shift right 1 bit position to index into this table
+    int m_incomingMessageCount;
 private:
     bool m_LinkTableComplete;
 };

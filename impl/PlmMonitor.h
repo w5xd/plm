@@ -13,6 +13,7 @@
 #include <boost/function.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include "Dimmer.h"
+#include "Keypad.h"
 
 namespace w5xdInsteon {
     class PlmMonitorIO;
@@ -60,7 +61,11 @@ namespace w5xdInsteon {
         template <class T>
         T *getDeviceAccess(const char *addr);
 
-        Dimmer *getDimmerAccess(const char *addr);
+        // C callable dimmer--access by string name
+        Dimmer *PlmMonitor::getDimmerAccess(const char *addr)
+        {return getDeviceAccess<Dimmer>(addr);}
+        Keypad *PlmMonitor::getKeypadAccess(const char *addr)
+        {return getDeviceAccess<Keypad>(addr);}
 
         boost::shared_ptr<InsteonCommand> 
             queueCommand(const unsigned char *v, unsigned s, unsigned resLen, bool retry = true, InsteonCommand::CompletionCb_t fcn=0);
@@ -69,6 +74,7 @@ namespace w5xdInsteon {
 
         int createLink(InsteonDevice *who, bool amControl,
             unsigned char grp, unsigned char flag, unsigned char ls1, unsigned char ls2, unsigned char ls3);
+        int removeLink(InsteonDevice *who, bool amControl, unsigned char grp);
 
         int setIfLinked(InsteonDevice *d, unsigned char v);
         int setFastIfLinked(InsteonDevice *d, int v);

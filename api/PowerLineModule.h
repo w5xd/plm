@@ -18,6 +18,7 @@ extern "C" {
 
     typedef struct Modem_t *Modem;
     typedef struct Dimm_t *Dimmer;
+    typedef struct Keypad_t *Keypad;
     /* commPortName 
     ** on Windows, must be COMn where n is a number
     ** on Linux, must be /dev/tty___ where ___ is the full device name
@@ -49,8 +50,10 @@ extern "C" {
     POWERLINE_DLL_ENTRY(int) getDimmerValue(Dimmer dimmer, int fromCache);
     /* given a dimmer, ask it to start sending over its linking table. */
     POWERLINE_DLL_ENTRY(int) startGatherLinkTable(Dimmer dimmer);
-     /* Have the device control the PLM on the given group. */
+    /* Have the PLM respond to the dimmer on its given group. */
     POWERLINE_DLL_ENTRY(int) linkAsController(Dimmer dimmer, int group);
+    /* Remove PLM as as reponder to this dimmer on its group */
+    POWERLINE_DLL_ENTRY(int) unLinkAsController(Dimmer dimmer, int group);
     /* given a dimmer, set it */
     POWERLINE_DLL_ENTRY(int) setDimmerValue(Dimmer dimmer, unsigned char v);
     /* given a dimmer, use FAST command (ramp rate = instant. v>0 is ON, v <= 0 OFF*/
@@ -91,9 +94,12 @@ extern "C" {
     POWERLINE_DLL_ENTRY(int) getX10Code(Dimmer dimmer, char *houseCode, unsigned char *unit);
     POWERLINE_DLL_ENTRY(int) setX10Code(Dimmer dimmer, char houseCode, unsigned char unit);
 
-#if 0
-    POWERLINE_DLL_ENTRY(int) setWallLEDbrightness(Dimmer dimmer, unsigned char bright);
-#endif
+        /* get dimmer access by dimmer hardware address */
+    POWERLINE_DLL_ENTRY(Keypad) getKeypadAccess(Modem modem, const char *addr);
+
+    POWERLINE_DLL_ENTRY(int) setKeypadFollowMask(Keypad keypad, unsigned char button, unsigned char mask);
+    POWERLINE_DLL_ENTRY(int) setKeypadOffMask(Keypad keypad, unsigned char button, unsigned char mask);
+    POWERLINE_DLL_ENTRY(int) setWallLEDbrightness(Keypad dimmer, unsigned char bright);
 
 #ifdef __cplusplus
 }

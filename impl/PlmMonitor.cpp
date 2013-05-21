@@ -15,7 +15,8 @@
 namespace w5xdInsteon {
 
 static int gNextId = 10349;
-enum {MAX_COMMAND_READS = 3, MAX_RETRIES = 8};
+enum {MAX_COMMAND_READS = 5, MAX_RETRIES = 8};
+static const int COMMAND_DELAY_MSEC = 1000;
 
 void bufferToStream(std::ostream &st, const unsigned char *v, int s)
 {
@@ -195,6 +196,7 @@ void PlmMonitor::ioThread()
     signalThreadStartStop(true);
     boost::shared_ptr<InsteonCommand> p;
     boost::shared_ptr<InsteonCommand> lastCommandAcqed;
+    boost::posix_time::ptime timeOfLastIncomingMessage = boost::posix_time::microsec_clock::universal_time();
     unsigned char rbuf[100];
     int sizeToRead = LargestMessageLength + 1;
     std::deque<unsigned char> leftOver;
@@ -430,18 +432,36 @@ void PlmMonitor::ioThread()
 			        bufferToStream(cerr(), &(*msg)[0], msg->size());
 			        cerr() << std::endl;
 		        }
+                timeOfLastIncomingMessage = boost::posix_time::microsec_clock::universal_time();
+                if (p)
+                {   // delay it.
+                    m_writeQueue.push_front(p);
+                    p.reset();
+                    if (m_verbosity >= static_cast<int>(MESSAGE_ON))
+                        cerr() << "Delaying previously dequeued p" << std::endl;
+                }
                 deliverfromRemoteMessage(msg, lastCommandAcqed);
             }
         }
         else if (!p)    // only look for commands if nothing read from modem
         {
-            if (leftOver.empty() && (--delayDequeue <= 0))
+            if (leftOver.empty() && (--delayDequeue <= 0)) 
             {// check for commands to write to modem
                 boost::mutex::scoped_lock l(m_mutex);
                 if (!m_writeQueue.empty())
                 {
-                    p = m_writeQueue.front();
-                    m_writeQueue.pop_front();
+                    boost::shared_ptr<InsteonCommand> temp = m_writeQueue.front();
+                    boost::posix_time::ptime now(boost::posix_time::microsec_clock::universal_time());
+                    if (
+                        (temp->m_command.size() < 2) ||
+                        // commands 0x62 and 0x63 cannot be sent until COMMAND_DELAY_MSEC after the last thing we heard from the PLM
+                        ((temp->m_command[1] != 0x62) && (temp->m_command[1] != 0x63)) ||
+                        ((now - timeOfLastIncomingMessage).total_milliseconds() > COMMAND_DELAY_MSEC)
+                        )
+                    {
+                        m_writeQueue.pop_front();
+                        p = temp;
+                    }
                 }
                 delayDequeue = 0;
             }
@@ -451,10 +471,11 @@ void PlmMonitor::ioThread()
                 if (m_verbosity >= static_cast<int>(MESSAGE_ON))
                 {
                     timeStamp(cerr());
-                    cerr() << "Writing command ";
+                    cerr() << "Writing command " << std::dec << p->m_globalId << " ";
                     bufferToStream(cerr(), &p->m_command[0], p->m_command.size());
                     cerr() << std::endl;
                 }
+                timeOfLastIncomingMessage = boost::posix_time::microsec_clock::universal_time();
                 if (!m_io->Write(&p->m_command[0], p->m_command.size()))
                 {   // fail now if failed to write
                     {
@@ -625,19 +646,17 @@ T *PlmMonitor::getDeviceAccess(const unsigned char addr[3])
     InsteonDeviceSet_t::iterator itor = m_insteonDeviceSet.find(addr);
     if (itor != m_insteonDeviceSet.end())
     {
-        if (itor->m_p->m_type == T::getClassDeviceType())
-            return reinterpret_cast<T *>(itor->m_p.get());
+        T *current = dynamic_cast<T *>(itor->m_p.get());
+        if (current)
+            return current;
         else 
             m_insteonDeviceSet.erase(itor);
     }
     boost::shared_ptr<InsteonDevice> v(new T(this, addr));
     m_insteonDeviceSet.insert(InsteonDevicePtr(v));
-    return reinterpret_cast<T *>(v.get());
+    return dynamic_cast<T *>(v.get());
 }
 
-// C callable dimmer--access by string name
-Dimmer *PlmMonitor::getDimmerAccess(const char *addr)
-{return getDeviceAccess<Dimmer>(addr);}
 
 int PlmMonitor::startLinking(int group, bool multiple)
 {
@@ -741,31 +760,74 @@ int PlmMonitor::createLink(InsteonDevice *who, bool amControl, unsigned char grp
     return p->m_answerState;
 }
 
+int PlmMonitor::removeLink(InsteonDevice *who, bool amControl, unsigned char grp)
+{
+    const InsteonDeviceAddr &addr = who->addr();
+    unsigned char buf[11] = {
+        0x02, 0x6f, 0x80, amControl ? InsteonLinkEntry::CONTROLLER_FLAG : 0, grp, 
+            addr[0], addr[1], addr[2],
+            0, 0, 0};
+     boost::shared_ptr<InsteonCommand> p = sendCommandAndWait(buf, sizeof(buf), 12);
+     return p->m_answerState;
+}
+
 int PlmMonitor::deleteGroupLinks(unsigned char group)
 {
     // removes all links for which I am the controller of the group
-    std::vector<InsteonDeviceAddr> devicesInvolved;
+    std::vector<InsteonDevice *> devicesInvolved;
     std::vector<InsteonLinkEntry> toDelete;
     {
-        boost::mutex::scoped_lock l(m_mutex);
-        if (!m_haveAllModemLinks)
-            return -1;
-        for (LinkTable_t::iterator itor = m_ModemLinks.begin(); itor != m_ModemLinks.end(); itor++)
+        LinkTable_t LinkTableCopy;
+        {
+            boost::mutex::scoped_lock l(m_mutex);
+            if (!m_haveAllModemLinks)
+                return -1;
+            LinkTableCopy = m_ModemLinks;
+        }
+        for (LinkTable_t::iterator itor = LinkTableCopy.begin(); itor != LinkTableCopy.end(); itor++)
         {
             if (itor->m_flag & 0x40) // is controller
             {
                 if (itor->m_group == group)
                 {
-                    devicesInvolved.push_back(itor->m_addr);
+                    devicesInvolved.push_back(getDeviceAccess<InsteonDevice>(itor->m_addr));
                     toDelete.push_back(*itor);
                 }
             }
         }
     }
 
+    InsteonDeviceSet_t insteonDeviceSet;
+    {
+        boost::mutex::scoped_lock l(m_mutex);
+        insteonDeviceSet = m_insteonDeviceSet;
+    }
+
+    for (
+        InsteonDeviceSet_t::iterator itor =  insteonDeviceSet.begin();
+        itor != insteonDeviceSet.end();
+        itor ++)
+        {
+            if (itor->m_p->numberOfLinks(10) > 0)
+            {
+                // if we are not already planning to deal with this device...
+                bool found = false;
+                for (unsigned i = 0; i < devicesInvolved.size(); i++)
+                {
+                    if (devicesInvolved[i]->addr() == itor->m_p->addr())
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found)
+                    devicesInvolved.push_back(itor->m_p.get());
+            }
+        }
+
     for (unsigned i = 0; i < devicesInvolved.size(); i++)
     {
-        InsteonDevice *dev = getDeviceAccess<InsteonDevice>(devicesInvolved[i]);
+        InsteonDevice *dev = devicesInvolved[i];
         dev->startGatherLinkTable();
         if (dev->numberOfLinks() < 0)
             return -2;
@@ -869,6 +931,7 @@ int PlmMonitor::printModemLinkTable()
 
 // force a couple of template instantiations. These are currently used above, but show how to make more, if needed
 template Dimmer *PlmMonitor::getDeviceAccess<Dimmer>(const char *);
+template Keypad *PlmMonitor::getDeviceAccess<Keypad>(const char *);
 template InsteonDevice *PlmMonitor::getDeviceAccess<InsteonDevice>(const char *);
 
 }

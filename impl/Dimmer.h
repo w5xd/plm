@@ -14,7 +14,7 @@ namespace w5xdInsteon {
         ** from a software perspective.
         */
     public:
-        Dimmer(PlmMonitor *, const unsigned char addr[3]);
+        Dimmer(PlmMonitor *plm, const unsigned char addr[3]);
         int getDimmerValue(bool fromCache) ;
         int setDimmerValue(unsigned char);
         int setDimmerFast(int);
@@ -28,10 +28,6 @@ namespace w5xdInsteon {
         { return controller->createLink(this, controlGroup, brightness, ramprate, 1); }
         // a dimmer responder doesn't care about ls3 values
         int removeLink(InsteonDevice *controller, unsigned char group){ return controller->removeLink(this, group, 0);}
-#if 0   // doesn't appear to work with 2466 togglelinc dimmer. Does work with keypadlinc
-        int setWallLEDbrightness(unsigned char bright)   {return sendExtendedCommand(1, 0x7, bright, 0);}
-#endif
-        static DeviceType_t getClassDeviceType(){return DEVICE_DIMMER;}
     protected:
         void incomingMessage(const std::vector<unsigned char> &, boost::shared_ptr<InsteonCommand>);
         bool    m_valueKnown;

@@ -225,6 +225,14 @@
 				>
 			</File>
 			<File
+				RelativePath=".\Keypad.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\Keypad.h"
+				>
+			</File>
+			<File
 				RelativePath=".\PlmMonitor.cpp"
 				>
 			</File>

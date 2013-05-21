@@ -6,7 +6,7 @@
 namespace w5xdInsteon {
 
 Dimmer::Dimmer(PlmMonitor *p, const unsigned char addr[3]) : 
-    InsteonDevice(p, addr, DEVICE_DIMMER), 
+    InsteonDevice(p, addr), 
         m_valueKnown(false), m_lastKnown(0),
         m_lastQueryCommandId(-1)
 {}

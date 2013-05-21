@@ -60,7 +60,9 @@ int main (int argc, char **argv)
     int printDimmerLinks = 0;
     int printExtRecords = 0;
     const char *responderLink = 0;
-    const char *responderUnlink = 0;
+    const char *controllerUnlink = 0;
+    Dimmer controller = 0;
+    int cLinks = -1;
     int X10Unit = -1;
     char X10Hc = 0;
     int X10 = 0;
@@ -73,6 +75,7 @@ int main (int argc, char **argv)
             " -l       Start linking process as controller on group grp (default to 254)\n"
             " -L       Start linking process  as responder on group grp.\n"
             "          If -d not specified, then stay in link mode for 4 minutes and exit\n"
+            "          If -d is specified, then set a link table in both dimmer and PLM\n"
             " -p       Print modem link table\n"
             " -g grp   Set group number for -s and -l to grp\n"
             " -d x.y.z Dimmer operations on Insteon address x,y.z\n"
@@ -86,6 +89,7 @@ int main (int argc, char **argv)
             "          its group 1 behavior when turned on/off from this modem\n"
             "          Specify a group number, -g, otherwise will use next unused group number in the PLM\n"
             " -X       for the group -g, track down all links on this modem and on devices and delete them\n"
+            "          adding -d x.y.z -d pl on the same command will delete those links even if modem is missing them\n"
             " -X10 [hc unit] for the dimmer -d,\n"
             "          print its X10 house code if hc unit not specified. Otherwise set X10 house code and unit.\n"
             "          A zero unit clears the X10 code in the device\n"
@@ -93,7 +97,8 @@ int main (int argc, char **argv)
             " -R <x.y.z> <ls1> <ls2> <ls3>\n"
             "          Links -d as controller, x.y.z as responder with values ls1, ls2, ls3 on controller group -g\n"
             " -U <x.y.z> <ls3>\n"
-            "           Unlinks -d as controller, x.y.z as responder on controller group -g and with ls3 on responder\n"
+            "           Unlinks -d as responder, x.y.z as Controller on controller group -g and with ls3 on responder\n"
+            "           If -d not specified, then it unlinks PLM as responder.\n"
             " <ComPort> is required. On Windows COMn, on Linux, /dev/ttyUSBn\n\n"
             "Copyright (c) 2013 by Wayne Wright, Round Rock, Texas.\n"
             "See license at http://github.com/w5xd/plm/blob/master/LICENSE.md\n"
@@ -212,13 +217,13 @@ int main (int argc, char **argv)
             case 'U':
                 if (i < argc - 1)
                 {
-                    responderUnlink = argv[++i];
+                    controllerUnlink = argv[++i];
                     if ((i < argc - 1) && isdigit(argv[i+1][0]))
                     {
                         ls3 = atoi(argv[++i]);  
                     }
                 }
-                if (!responderUnlink || (ls3 < 0))
+                if (!controllerUnlink || (ls3 < 0))
                 {
                     fprintf(stderr, "-U must specify addr n1 where n1 is the number for ls3\n");
                     return 1;
@@ -243,7 +248,7 @@ int main (int argc, char **argv)
     }
 
     if (deleteLinks)
-        if ((linkGroup < 0) || dimmerAddr || createLinks || setVal >= 0)
+        if ((linkGroup < 0) || createLinks || setVal >= 0)
     {
         fprintf(stderr, "Can't remove without also only specifying -g <group>\n");
         return 1;
@@ -255,9 +260,15 @@ int main (int argc, char **argv)
         return 1;
     }
 
-    if ((responderLink || responderUnlink) && ((linkGroup < 0) || !dimmerAddr))
+    if (responderLink  && ((linkGroup < 0) || !dimmerAddr))
     {
         fprintf(stderr, "With -r or -R, must also specify -g and -d\n");
+        return 1;
+    }
+
+    if (controllerUnlink && (linkGroup < 0))
+    {
+        fprintf(stderr, "With -U, must also specify -g \n");
         return 1;
     }
 
@@ -333,14 +344,25 @@ int main (int argc, char **argv)
     else
         cancelLinking(m);
 
-    if (deleteLinks)
-    {
-        deleteGroupLinks(m, linkGroup);
-        return 0;
-    }
-
     if ((setVal >= 0) && (linkGroup >= 0))
         setAllDevices(m, linkGroup, (unsigned char)setVal);
+
+    if (controllerUnlink)
+    {
+        controller = getDimmerAccess(m, controllerUnlink);
+        if (!controller)
+        {
+            fprintf(stderr, "Dimmer address %s is invalid\n", controllerUnlink);
+            return 1;
+        }
+        startGatherLinkTable(controller);
+        cLinks = getNumberOfLinks(controller);    
+        if (cLinks < 0)
+        {
+            fprintf(stderr, "Can't get %s links\n", controllerUnlink);
+            return 1;
+        }
+    }
 
     if (dimmerAddr)
     {
@@ -362,6 +384,11 @@ int main (int argc, char **argv)
         for (jj = 1; jj <= printExtRecords; jj++)
         {
             int ret = extendedGet(dimmer, (unsigned char)jj, 0, 0);
+            if (ret < 0)
+            {
+                fprintf(stderr, "extendedGet failed on item %d\n", (int)jj);
+                break;
+            }
         }
         for (jj = 1; jj <= printExtRecords; jj++)
              printExtendedGet(dimmer, (unsigned char)jj);
@@ -421,24 +448,17 @@ int main (int argc, char **argv)
             }
         }
 
-        if (responderUnlink)
+        if (controller)
         {
-            Dimmer responder = getDimmerAccess(m, responderUnlink);
-            if (!responder)
+            int v, rLinks;
+            if (dimmer)
             {
-                fprintf(stderr, "Dimmer address %s is invalid\n", responderUnlink);
-                return 1;
-            }
-            {
-                int cLinks, v, rLinks;
                 if (!printDimmerLinks)
                     startGatherLinkTable(dimmer);
-                cLinks = getNumberOfLinks(dimmer);
-                startGatherLinkTable(responder);
-                rLinks = getNumberOfLinks(responder);
+                rLinks = getNumberOfLinks(dimmer);
                 if ((rLinks >= 0) && (cLinks >= 0))
                 {
-                    v = removeDeviceLink(dimmer, responder, linkGroup, ls3);
+                    v = removeDeviceLink(controller, dimmer, linkGroup, ls3);
                     fprintf(stderr, "removeDeviceLink result is %d\n", v);
                 }
                 else
@@ -475,6 +495,21 @@ int main (int argc, char **argv)
             }
          }
     }
+    else if (controller)
+    {
+        int v = unLinkAsController(controller, linkGroup);
+        fprintf(stderr, "unLinkAsControll completed %d\n", v);
+    }
+
+
+    if (deleteLinks)
+    {   // order of this command is important.
+        // if -d appears for a dimmer, it will be checked for responding to this modem
+        // even if the modem is missing a command link for it.
+        int v = deleteGroupLinks(m, linkGroup);
+        fprintf(stderr, "-X command returned %d\n", v);
+    }
+
 
     SLEEP(waitSeconds);
     shutdownModem(m);

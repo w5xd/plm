@@ -70,6 +70,14 @@ POWERLINE_DLL_ENTRY(Dimmer) getDimmerAccess(Modem modem, const char *addr)
         reinterpret_cast<w5xdInsteon::PlmMonitor *>(modem)->getDimmerAccess(addr));
 }
 
+POWERLINE_DLL_ENTRY(Keypad) getKeypadAccess(Modem modem, const char *addr)
+{
+    if (!modem) return 0;
+    return reinterpret_cast<Keypad>(
+        reinterpret_cast<w5xdInsteon::PlmMonitor *>(modem)->getKeypadAccess(addr));
+}
+
+
 POWERLINE_DLL_ENTRY(int) getDimmerValue(Dimmer dimmer, int fromCache)
 {
     if (!dimmer) return 0;
@@ -80,6 +88,12 @@ POWERLINE_DLL_ENTRY(int) linkAsController(Dimmer dimmer, int group)
 {
     if (!dimmer) return 0;
     return reinterpret_cast<w5xdInsteon::Dimmer *>(dimmer)->linkAsController(static_cast<unsigned char>(group));
+}
+
+POWERLINE_DLL_ENTRY(int) unLinkAsController(Dimmer dimmer, int group)
+{
+    if (!dimmer) return 0;
+    return reinterpret_cast<w5xdInsteon::Dimmer *>(dimmer)->unLinkAsController(static_cast<unsigned char>(group));
 }
 
 POWERLINE_DLL_ENTRY(int) getNumberOfLinks(Dimmer dimmer)
@@ -185,10 +199,21 @@ POWERLINE_DLL_ENTRY(int) setX10Code(Dimmer dimmer, char houseCode, unsigned char
     return reinterpret_cast<w5xdInsteon::Dimmer *>(dimmer)->setX10Code(houseCode, unit);
 }
 
-#if 0
-POWERLINE_DLL_ENTRY(int) setWallLEDbrightness(Dimmer dimmer, unsigned char bright)
+POWERLINE_DLL_ENTRY(int) setKeypadFollowMask(Keypad keypad, unsigned char button, unsigned char mask)
 {
-    if (!dimmer) return 0;
-    return reinterpret_cast<w5xdInsteon::Dimmer *>(dimmer)->setWallLEDbrightness(bright);
+    if (!keypad) return 0;
+    return reinterpret_cast<w5xdInsteon::Keypad *>(keypad)->setKeypadFollowMask( button, mask);
 }
-#endif
+
+POWERLINE_DLL_ENTRY(int) setKeypadOffMask(Keypad keypad, unsigned char button, unsigned char mask)
+{
+    if (!keypad) return 0;
+    return reinterpret_cast<w5xdInsteon::Keypad *>(keypad)->setKeypadOffMask( button, mask);
+}
+
+POWERLINE_DLL_ENTRY(int) setWallLEDbrightness(Keypad keypad, unsigned char bright)
+{
+    if (!keypad) return 0;
+    return reinterpret_cast<w5xdInsteon::Keypad *>(keypad)->setWallLEDbrightness(bright);
+}
+
