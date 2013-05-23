@@ -16,9 +16,15 @@ public:
     {
         return sendExtendedCommand(button, 2, mask);
     }
+
     int setKeypadOffMask(unsigned char button, unsigned char mask)
     {
         return sendExtendedCommand(button, 3, mask);
+    }
+
+    int setNonToggleState(unsigned char button, unsigned char nonToggle)
+    {
+        return sendExtendedCommand(button, 8, nonToggle);
     }
 
     int setX10Code(char houseCode, unsigned char unit, unsigned char btn)

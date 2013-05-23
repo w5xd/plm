@@ -216,7 +216,7 @@ int InsteonDevice::printLinkTable() const
         itor->second.print(oss);
         oss << std::endl;
     }
-    m_plm->cerr() << oss.str() << "end table" << std::endl;
+    m_plm->cerr() << oss.str() << "end table" << std::endl << std::flush;
     return 1;
 }
 
@@ -375,7 +375,7 @@ int InsteonDevice::printExtendedGet(unsigned char btn)const
 "                                             btn  resp unu  unu  X10H X10U RAMP ONLV" << std::endl;
     bufferToStream(oss, &itor->second[0], itor->second.size());
     oss << std::endl;
-    m_plm->cerr() << oss.str();
+    m_plm->cerr() << oss.str() << std::flush;
     return 1;
 }
 

@@ -96,10 +96,17 @@ extern "C" {
 
         /* get dimmer access by dimmer hardware address */
     POWERLINE_DLL_ENTRY(Keypad) getKeypadAccess(Modem modem, const char *addr);
+    /* The button numbers are 1 through 8. For 6-key keypad, the
+    ** #1 is the ON/OFF, A,B,C,D are 3,4,5,6. Unused are 2,7,8 */
 
+    /* a FollowMask is... 
+    **  The bit numbers: LSB is button 1 and MSB is button 8*/
     POWERLINE_DLL_ENTRY(int) setKeypadFollowMask(Keypad keypad, unsigned char button, unsigned char mask);
+    /* an OffMask is ... 
+    **  The bit numbers: LSB is button 1 and MSB is button 8*/
     POWERLINE_DLL_ENTRY(int) setKeypadOffMask(Keypad keypad, unsigned char button, unsigned char mask);
-    POWERLINE_DLL_ENTRY(int) setWallLEDbrightness(Keypad dimmer, unsigned char bright);
+    POWERLINE_DLL_ENTRY(int) setWallLEDbrightness(Keypad keypad, unsigned char bright);
+    POWERLINE_DLL_ENTRY(int) setNonToggleState(Keypad keypad, unsigned char button, unsigned char nonToggle);
 
 #ifdef __cplusplus
 }

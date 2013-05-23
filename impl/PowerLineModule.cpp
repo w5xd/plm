@@ -211,6 +211,12 @@ POWERLINE_DLL_ENTRY(int) setKeypadOffMask(Keypad keypad, unsigned char button, u
     return reinterpret_cast<w5xdInsteon::Keypad *>(keypad)->setKeypadOffMask( button, mask);
 }
 
+POWERLINE_DLL_ENTRY(int) setNonToggleState(Keypad keypad, unsigned char button, unsigned char nonToggle)
+{
+    if (!keypad) return 0;
+    return reinterpret_cast<w5xdInsteon::Keypad *>(keypad)->setNonToggleState(button, nonToggle);
+}
+
 POWERLINE_DLL_ENTRY(int) setWallLEDbrightness(Keypad keypad, unsigned char bright)
 {
     if (!keypad) return 0;

@@ -1,5 +1,6 @@
 /* Copyright (c) 2013 by Wayne Wright, Round Rock, Texas.
 ** See license at http://github.com/w5xd/plm/blob/master/LICENSE.md */
+
 #include <stdio.h>
 #if defined (WIN32)
 #include <windows.h>
@@ -40,18 +41,56 @@ static void DimmerTest(Dimmer dimmer);
 ** are routed through the group. All other values are direct.
 */
 
+
+
+static int procCommmand(Modem *m, int *readStdin, int *waitSeconds, int argc, char **argv);
+
 int main (int argc, char **argv)
 {
+    int waitSeconds = 0;
+    Modem m = 0;
+    int readStdin = 0;
+    int ret = procCommmand(&m, &readStdin, &waitSeconds, argc, argv);
+    while ((ret == 0) && readStdin)
+    {
+        char buf[256];
+        char *p = fgets(buf, sizeof(buf), stdin);
+        if (!p || !*p)
+            break;
+        argc = 1;
+        argv = malloc(argc * sizeof(char*));
+        argv[0] = "";
+        for (;;)
+        {
+            while (*p && isspace(*p)) *p++ = 0;
+            if (!*p)
+                break;
+            argv = realloc(argv, (argc+1) * sizeof(char *));
+            argv[argc++] = p;
+            while (*p && !isspace(*p)) p += 1;
+        }
+        waitSeconds = 0;
+        if (argc > 1)
+            ret = procCommmand(&m, &readStdin, &waitSeconds, argc, argv);
+        free(argv);
+    }
+    if (!waitSeconds)
+        SLEEP(2);
+    shutdownModem(m);
+    return ret;
+}
+
+static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, char **argv)
+{
+    Modem m = 0;
     const char *modName = "";
     const char *dimmerAddr = 0;
     Dimmer dimmer=0;
-    Modem m = 0;
     int reset = 0;
     int cmdStartLink = 0; /* >0 is link as control, <0 is responder*/
     int linkGroup = -1;
     int i;
     int setVal = -1;
-    int waitSeconds = 2;
     int createLinks = 0;
     int deleteLinks = 0;
     int dimmerTest = 0;
@@ -59,9 +98,13 @@ int main (int argc, char **argv)
     int printModemLinks = 0;
     int printDimmerLinks = 0;
     int printExtRecords = 0;
-    const char *responderLink = 0;
+    int messageLevel = -1;
+    int keypadButton = -1;
+    int keypadMask = -1;
+    char keypadArg = 0;
+    const char *controllerLink = 0;
     const char *controllerUnlink = 0;
-    Dimmer controller = 0;
+    Dimmer controllerU = 0;
     int cLinks = -1;
     int X10Unit = -1;
     char X10Hc = 0;
@@ -71,35 +114,41 @@ int main (int argc, char **argv)
     {
         fprintf(stderr, "Usage: PlmTest [-r] [-l] [-g grp] [-d x.y.z] [-s value] [-w [tmo]] [-x] [-X] <ComPort>\n");
         fprintf(stderr, 
-            " -r       Reset modem to factory defaults. All other commands ignored\n"
+            " -Reset   Reset modem to factory defaults. All other commands ignored\n"
             " -l       Start linking process as controller on group grp (default to 254)\n"
-            " -L       Start linking process  as responder on group grp.\n"
+            " -r       Start linking process  as responder on group grp.\n"
             "          If -d not specified, then stay in link mode for 4 minutes and exit\n"
-            "          If -d is specified, then set a link table in both dimmer and PLM\n"
+            "          If -d is specified, then set link tables so PLM responds to dimmer on group grp\n"
             " -p       Print modem link table\n"
-            " -g grp   Set group number for -s and -l to grp\n"
+            " -g <grp> Set group number for -s and -l to grp\n"
             " -d x.y.z Dimmer operations on Insteon address x,y.z\n"
-            "          If also -l or -L, then command dimmer to appropriate link mode\n"
+            "          \n"
             " -d pl    Print modem link table. Can be combined with another -d\n"
-            " -s value Command group grp or dimmer to on or off\n"
+            " -s <value> Command group grp or dimmer to on or off\n"
             "          -1 with -d runs a dimmer test sequence\n"
             "          Any other negative value just retrieves dimmer value\n"
-            " -w tmo   Wait for tmo seconds (default to 30) and print monitored traffic\n"
+            " -kf <btn> <val>   keypad follow mask\n"
+            " -ko <btn> <val>   keypad off mask\n"
+            "           for keypad at address -d, and for button number <btn>, set follow mask (off mask)\n"
+            " -w <tmo> Wait for tmo seconds (default to 30) and print monitored traffic\n"
             " -x       For the dimmer -d, cross link records on this modem to duplicate\n"
             "          its group 1 behavior when turned on/off from this modem\n"
             "          Specify a group number, -g, otherwise will use next unused group number in the PLM\n"
-            " -X       for the group -g, track down all links on this modem and on devices and delete them\n"
+            " -X       for the group -g and PLM as controller, track down all links on this modem and on devices and delete them\n"
             "          adding -d x.y.z -d pl on the same command will delete those links even if modem is missing them\n"
             " -X10 [hc unit] for the dimmer -d,\n"
             "          print its X10 house code if hc unit not specified. Otherwise set X10 house code and unit.\n"
             "          A zero unit clears the X10 code in the device\n"
             " -e [n]   For specified dimmer, print n extended records.\n"
-            " -R <x.y.z> <ls1> <ls2> <ls3>\n"
-            "          Links -d as controller, x.y.z as responder with values ls1, ls2, ls3 on controller group -g\n"
+            " -L <x.y.z> <ls1> <ls2> <ls3>\n"
+            "          Links -d as responder, x.y.z as controller with values ls1, ls2, ls3 on controller group -g\n"
             " -U <x.y.z> <ls3>\n"
-            "           Unlinks -d as responder, x.y.z as Controller on controller group -g and with ls3 on responder\n"
+            "           Unlinks -d as responder, x.y.z as controller on controller group -g and with ls3 on responder\n"
             "           If -d not specified, then it unlinks PLM as responder.\n"
-            " <ComPort> is required. On Windows COMn, on Linux, /dev/ttyUSBn\n\n"
+            " -m <n>    Set message level to n.\n"
+            " --        means read stdin for more commands\n"
+            " <ComPort> is required. On Windows COMn, on Linux, /dev/ttyUSBn\n"
+            "\n"
             "Copyright (c) 2013 by Wayne Wright, Round Rock, Texas.\n"
             "See license at http://github.com/w5xd/plm/blob/master/LICENSE.md\n"
             );
@@ -119,11 +168,21 @@ int main (int argc, char **argv)
         }
         else switch (argv[i][1])
         {
-            case 'r':
-                reset = 1;
+            case 'R':
+                if (strcmp(argv[i], "Reset") == 0)
+                    reset = 1;
+                else
+                {
+                    fprintf(stderr, "Must spell out -Reset to reset the modem\n");
+                    return -1;
+                }
                 break;
             case 'p':
                 printModemLinks = 1;
+                break;
+            case 'm':
+                if (i < argc -1)
+                    messageLevel = atoi(argv[++i]);
                 break;
             case 'g':
                 if ((i < argc - 1) && isdigit(argv[i+1][0]))
@@ -133,7 +192,7 @@ int main (int argc, char **argv)
                 cmdStartLink = 1;
                 if (linkGroup < 0) linkGroup = 254; /* set default */
                 break;
-            case 'L':
+            case 'r':
                 cmdStartLink = -1;
                 if (linkGroup < 0) linkGroup = 254; /* set default */
                 break;
@@ -164,9 +223,8 @@ int main (int argc, char **argv)
                 }
                 break;
             case 'w':
-                waitSeconds = 30;
                 if ((i < argc - 1) && isdigit(argv[i+1][0]))
-                    waitSeconds = atoi(argv[++i]);                
+                    *waitSeconds = atoi(argv[++i]);                
                 break;
             case 'x':
                 createLinks = 1;
@@ -193,10 +251,10 @@ int main (int argc, char **argv)
             case 'a':
                 allStuff = 1;
                 break;
-            case 'R':
+            case 'L':
                 if (i < argc - 1)
                 {
-                    responderLink = argv[++i];
+                    controllerLink = argv[++i];
                     if ((i < argc - 1) && isdigit(argv[i+1][0]))
                     {
                         ls1 = atoi(argv[++i]);  
@@ -208,9 +266,9 @@ int main (int argc, char **argv)
                         }
                     }
                 }
-                if (!responderLink || (ls1 < 0) || (ls2 < 0) || (ls3 < 0))
+                if (!controllerLink || (ls1 < 0) || (ls2 < 0) || (ls3 < 0))
                 {
-                    fprintf(stderr, "-R must specify <addr> <n1> <n2> <n3> where n1, n2 and n3 are the numbers for ls1 and ls2 and ls3\n");
+                    fprintf(stderr, "-L must specify <addr> <n1> <n2> <n3> where n1, n2 and n3 are the numbers for ls1 and ls2 and ls3\n");
                     return 1;
                 }
                 break;
@@ -229,6 +287,27 @@ int main (int argc, char **argv)
                     return 1;
                 }
                 break;
+            case '-':
+                *readStdin = 1;
+                break;
+            case 'k':
+                if (i < argc - 2)
+                {
+                    keypadArg = 0;
+                    keypadButton = atoi(argv[i+1]);
+                    keypadMask = atoi(argv[i+2]);
+                    if (strcmp(argv[i], "-kf") == 0)
+                        keypadArg = 'f';
+                    else if (strcmp(argv[i], "-ko") == 0)
+                        keypadArg = 'o';
+                    if (keypadArg   != 0)
+                    {
+                        i += 2;
+                        break;
+                    }
+                }
+                fprintf(stderr, "unregcognized comand argument %s\n", argv[i]);
+                return -1;
             default:
                 fprintf(stderr, "unrecognized command line argument %s\n", argv[i]);
                 return -1;
@@ -256,13 +335,13 @@ int main (int argc, char **argv)
 
     if ((cmdStartLink < 0) && (linkGroup < 0))
     {
-        fprintf(stderr, "With -L, must also specify -g\n");
+        fprintf(stderr, "With -r, must also specify -g\n");
         return 1;
     }
 
-    if (responderLink  && ((linkGroup < 0) || !dimmerAddr))
+    if (controllerLink  && ((linkGroup < 0) || !dimmerAddr))
     {
-        fprintf(stderr, "With -r or -R, must also specify -g and -d\n");
+        fprintf(stderr, "With -r or -L, must also specify -g and -d\n");
         return 1;
     }
 
@@ -272,8 +351,16 @@ int main (int argc, char **argv)
         return 1;
     }
 
-    if (!modName || !modName[0])
+    if (keypadArg && !dimmerAddr)
     {
+        fprintf(stderr, "With -k_ must also specify -d\n");
+        return 1;
+    }
+
+    if (!*mp && (!modName || !modName[0]))
+    {
+        if ((argc == 2) && (strcmp(argv[1], "--") == 0))
+            return 0;   // silently return to tell caller to read stdin
         fprintf(stderr, "Must specify the device name of the modem serial port\n");
         return 1;
     }
@@ -287,7 +374,13 @@ int main (int argc, char **argv)
     if (X10 && !printExtRecords)
         printExtRecords = 1;
  
-    m = openPowerLineModem(modName, 0, 2, 0);
+    if (modName && *modName)
+    {
+        *mp = openPowerLineModem(modName, 0, 2, 0);
+        if (*mp)
+            setErrorLevel(*mp, 2);
+    }
+    m = *mp;
 
     if (m == 0)
     {
@@ -295,7 +388,8 @@ int main (int argc, char **argv)
         return 1;
     }
 
-    setErrorLevel(m, 2);
+    if (messageLevel >= 0)
+        setErrorLevel(m, messageLevel);
 
     if (reset)
     {
@@ -303,21 +397,17 @@ int main (int argc, char **argv)
         return 0;
     }
 
-    getModemLinkRecords(m);
+    if (modName && *modName)
+        getModemLinkRecords(m);
 
     if (printModemLinks)
         printModemLinkTable(m);
 
     if (allStuff)
     {
-        Dimmer d1 = getDimmerAccess(m, "11.11.11");
-        Dimmer d2 = getDimmerAccess(m, "22.22.22");
-        Dimmer d3 = getDimmerAccess(m, "33.33.33");
-        Dimmer d4 = getDimmerAccess(m, "44.44.44");
-        setDimmerValue(d1, setVal);
-        setDimmerValue(d2, setVal);
-        setDimmerValue(d3, setVal);
-        setDimmerValue(d4, setVal);
+        if (dimmerAddr)
+        {
+        }
     }
 
     if (cmdStartLink > 0)
@@ -349,24 +439,25 @@ int main (int argc, char **argv)
 
     if (controllerUnlink)
     {
-        controller = getDimmerAccess(m, controllerUnlink);
-        if (!controller)
+        controllerU = getDimmerAccess(m, controllerUnlink);
+        if (!controllerU)
         {
             fprintf(stderr, "Dimmer address %s is invalid\n", controllerUnlink);
             return 1;
         }
-        startGatherLinkTable(controller);
-        cLinks = getNumberOfLinks(controller);    
+        startGatherLinkTable(controllerU);
+        cLinks = getNumberOfLinks(controllerU);    
         if (cLinks < 0)
-        {
-            fprintf(stderr, "Can't get %s links\n", controllerUnlink);
-            return 1;
-        }
+            fprintf(stderr, "Can't get %s links, but continuing\n", controllerUnlink);
     }
 
     if (dimmerAddr)
     {
         int jj;
+        Keypad kp = 0;
+        if (keypadArg)
+            kp = getKeypadAccess(m, dimmerAddr); // more derived class we ask for first
+
         dimmer = getDimmerAccess(m, dimmerAddr);
         if (!dimmer)
         {
@@ -448,7 +539,7 @@ int main (int argc, char **argv)
             }
         }
 
-        if (controller)
+        if (controllerU)
         {
             int v, rLinks;
             if (dimmer)
@@ -456,48 +547,63 @@ int main (int argc, char **argv)
                 if (!printDimmerLinks)
                     startGatherLinkTable(dimmer);
                 rLinks = getNumberOfLinks(dimmer);
-                if ((rLinks >= 0) && (cLinks >= 0))
+                if ((rLinks < 0) && (cLinks < 0))
+                    fprintf(stderr, "no unlinking attempted because rLinks=%d and cLinks=%d\n", rLinks, cLinks);
+                else
                 {
-                    v = removeDeviceLink(controller, dimmer, linkGroup, ls3);
+                    v = removeDeviceLink(controllerU, dimmer, linkGroup, ls3);
                     fprintf(stderr, "removeDeviceLink result is %d\n", v);
                 }
-                else
-                    fprintf(stderr, "no unlinking attempted because rLinks=%d and cLinks=%d\n", rLinks, cLinks);
             }
         }
-        else if (responderLink)
+        else if (controllerLink)
         {
-            Dimmer responder = getDimmerAccess(m, responderLink);
-            if (!responder)
+            Dimmer controller = getDimmerAccess(m, controllerLink);
+            if (!controller)
             {
-                fprintf(stderr, "Dimmer address %s is invalid\n", responderLink);
+                fprintf(stderr, "Dimmer address %s is invalid\n", controllerLink);
                 return 1;
             }
             {
                 int cLinks, v, rLinks;
                 if (!printDimmerLinks)
                     startGatherLinkTable(dimmer);
-                cLinks = getNumberOfLinks(dimmer);
-                startGatherLinkTable(responder);
-                rLinks = getNumberOfLinks(responder);
+                rLinks = getNumberOfLinks(dimmer);
+                startGatherLinkTable(controller);
+                cLinks = getNumberOfLinks(controller);
                 if ((rLinks >= 0) && (cLinks >= 0))
                 {
-                    v = createDeviceLink(dimmer, responder, linkGroup, ls1, ls2, ls3);
+                    v = createDeviceLink(controller, dimmer, linkGroup, ls1, ls2, ls3);
                     startGatherLinkTable(dimmer);
                     getNumberOfLinks(dimmer);
-                    startGatherLinkTable(responder);
-                    getNumberOfLinks(responder);
+                    startGatherLinkTable(controller);
+                    getNumberOfLinks(controller);
                     printLinkTable(dimmer);
-                    printLinkTable(responder);
+                    printLinkTable(controller);
                 }
                 else
                     fprintf(stderr, "no linking attempted because rLinks=%d and cLinks=%d\n", rLinks, cLinks);
             }
          }
+
+        {
+            int v = -100;
+            switch (keypadArg)
+            {
+            case 'f':
+                v = setKeypadFollowMask(kp, keypadButton, keypadMask);
+                break;
+            case 'o':
+                v = setKeypadOffMask(kp, keypadButton, keypadMask);
+                break;
+            }
+            if (v != -100)
+                fprintf(stderr, "Keypad mask setting result is %d\n", v);
+        }
     }
-    else if (controller)
+    else if (controllerU)
     {
-        int v = unLinkAsController(controller, linkGroup);
+        int v = unLinkAsController(controllerU, linkGroup);
         fprintf(stderr, "unLinkAsControll completed %d\n", v);
     }
 
@@ -511,8 +617,7 @@ int main (int argc, char **argv)
     }
 
 
-    SLEEP(waitSeconds);
-    shutdownModem(m);
+    SLEEP(*waitSeconds);
 
     return 0;
 }
