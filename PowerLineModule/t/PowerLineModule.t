@@ -8,7 +8,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 5;
+use Test::More tests => 7;
 BEGIN { use_ok('PowerLineModule') };
 
 #########################
@@ -18,23 +18,34 @@ BEGIN { use_ok('PowerLineModule') };
 BEGIN {
 	my $Msg = PowerLineModule::getErrorMessage(-1); 
 	ok($Msg eq "CreateFile failed", "getErrorMsg");
-	diag("Got error message " . $Msg . "\n");
+	diag("Need two env variabls, POWERLINEMODULE_COMPORT and POWERLINEMODULE_DEVID\n");
+	if (!defined($ENV{POWERLINEMODULE_COMPORT}) || !defined($ENV{POWERLINEMODULE_DEVID})) { return 1; }
+	diag("They are now ".$ENV{POWERLINEMODULE_COMPORT}." and ".$ENV{POWERLINEMODULE_DEVID}."\n");
 	my @Modem;
-	@Modem = PowerLineModule::openPowerLineModem("COM5", 0);
+	@Modem = PowerLineModule::openPowerLineModem($ENV{POWERLINEMODULE_COMPORT}, 2, 0);
 	ok(scalar(@Modem) == 2, "openPowerLineModem");
 	diag("Modem: " . $Modem[0] . "," . $Modem[1] ."\n");
 	if ($Modem[0] != 0) {
-		my $Dimmer = PowerLineModule::getDimmerAccess($Modem[0], "1a.cd.8b");
+		my $Dimmer = PowerLineModule::getDimmerAccess($Modem[0], $ENV{POWERLINEMODULE_DEVID});
 		ok($Dimmer != 0, "accessDimmer");
 		diag("Dimmer: ".$Dimmer."\n");
 		if ($Dimmer != 0) {
-			my $v = PowerLineModule::getDimmerValue($Dimmer);
-			ok($v == -10, "setDimmerValue");
+			my $v = PowerLineModule::getDimmerValue($Dimmer, 0);
+			ok($v == 0, "setDimmerValue");
 			PowerLineModule::setDimmerValue($Dimmer, 100);
 			sleep(5);
-			diag("Setting Dimmer 0\n");
+			diag("Setting Dimmer to 0\n");
 			PowerLineModule::setDimmerValue($Dimmer, 0);
 			sleep(5);
+			my @dX10 = PowerLineModule::getX10Code($Dimmer);
+			ok(scalar(@dX10) == 3, "getX10Code");
+			diag("getX10Code=".$dX10[0].", hc=".$dX10[1].", unit=".$dX10[2]."\n");
 		}	
+		my $Keypad = PowerLineModule::getKeypadAccess($Modem[0], $ENV{POWERLINEMODULE_DEVID});
+		ok ($Keypad != 0, "accessKeypad");
+		if ($Keypad != 0) {
+			sleep(10);
+			PowerLineModule::setWallLEDbrightness($Keypad, 32);
+		}
 	}
 };

@@ -47,6 +47,11 @@ linkAsController(dimmer, group)
 	int	group
 
 int
+unLinkAsController(dimmer, group)
+	Dimmer	dimmer
+	int	group
+
+int
 startGatherLinkTable(dimmer)
 	Dimmer	dimmer
 
@@ -70,6 +75,20 @@ openPowerLineModem(commPortName, level, logFileName)
 int
 getModemLinkRecords(modem)
 	Modem modem
+
+int
+getNextUnusedControlGroup(modem)
+	Modem modem
+
+int
+deleteGroupLinks(modem, group)
+	Modem modem
+	unsigned char group
+
+int
+createModemGroupToMatch(group, dimmer)
+	int group
+	Dimmer dimmer
 
 int
 printModemLinkTable(modem)
@@ -123,3 +142,53 @@ removeDeviceLink(controller, responder, group, ls3)
 	Dimmer responder
 	unsigned char group
 	unsigned char ls3
+
+int
+getX10Code(dimmer)
+	Dimmer dimmer
+	INIT:
+	    char houseCode=0;
+	    unsigned char unit=0;
+	PPCODE:
+            extendedGet(dimmer, 1, 0, 0); /* ask for btn 1 first*/
+	    RETVAL = getX10Code(dimmer, &houseCode, &unit);
+            XPUSHs(sv_2mortal(newSViv(RETVAL))); /* [0]*/
+	    XPUSHs(sv_2mortal(newSVpvn(&houseCode, 1))); /* will be [1] */
+	    XPUSHs(sv_2mortal(newSViv(unit)));   /* will be [2] */
+
+int
+setX10Code(dimmer, houseCode, unit)
+	Dimmer dimmer
+	char *houseCode
+	unsigned char unit
+	PPCODE:
+		RETVAL = setX10Code(dimmer, houseCode[0], unit);
+
+Keypad
+getKeypadAccess(modem, addr)
+	Modem	modem
+	char *	addr
+
+int
+setWallLEDbrightness(keypad, bright)
+	Keypad keypad
+	unsigned char bright
+
+int
+setKeypadFollowMask(keypad, button, mask)
+	Keypad keypad
+	unsigned char button
+	unsigned char mask
+
+int
+setKeypadOffMask(keypad, button, mask)
+	Keypad keypad
+	unsigned char button
+	unsigned char mask
+
+int
+setNonToggleState(keypad, button, nonToggle)
+	Keypad keypad
+	unsigned char button
+	unsigned char nonToggle
+
