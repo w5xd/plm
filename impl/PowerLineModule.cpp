@@ -32,7 +32,7 @@ POWERLINE_DLL_ENTRY(int) startLinkingR(Modem  modem, int group)
     return reinterpret_cast<w5xdInsteon::PlmMonitor *>(modem)->startLinkingR(static_cast<unsigned char>(group));
 }
 
-POWERLINE_DLL_ENTRY(int) printModemLinkTable(Modem  modem)
+POWERLINE_DLL_ENTRY(const char *) printModemLinkTable(Modem  modem)
 {
     if (!modem) return 0;
     return reinterpret_cast<w5xdInsteon::PlmMonitor *>(modem)->printModemLinkTable();
@@ -102,7 +102,7 @@ POWERLINE_DLL_ENTRY(int) getNumberOfLinks(Dimmer dimmer)
     return reinterpret_cast<w5xdInsteon::InsteonDevice *>(dimmer)->numberOfLinks();
 }
 
-POWERLINE_DLL_ENTRY(int) printLinkTable(Dimmer dimmer)
+POWERLINE_DLL_ENTRY(const char *) printLinkTable(Dimmer dimmer)
 {
     if (!dimmer) return 0;
     return reinterpret_cast<w5xdInsteon::InsteonDevice *>(dimmer)->printLinkTable();
@@ -181,7 +181,7 @@ POWERLINE_DLL_ENTRY(int) extendedGet(Dimmer dimmer, unsigned char btn, unsigned 
     return reinterpret_cast<w5xdInsteon::Dimmer *>(dimmer)->extendedGet(btn, pBuf, bufsize);
 }
 
-POWERLINE_DLL_ENTRY(int) printExtendedGet(Dimmer dimmer, unsigned char btn)
+POWERLINE_DLL_ENTRY(const char *) printExtendedGet(Dimmer dimmer, unsigned char btn)
 {
     if (!dimmer) return 0;
     return reinterpret_cast<w5xdInsteon::Dimmer *>(dimmer)->printExtendedGet(btn);

@@ -29,7 +29,7 @@ extern "C" {
     POWERLINE_DLL_ENTRY(Modem) openPowerLineModem(const char *commPortName, 
         int *wasOpen, int level, const char *logFileName);
     /* print the modem's link table */
-    POWERLINE_DLL_ENTRY(int) printModemLinkTable(Modem modem);
+    POWERLINE_DLL_ENTRY(const char *) printModemLinkTable(Modem modem);
     /* start device linking session as controller */
     POWERLINE_DLL_ENTRY(int) startLinking(Modem  modem, int group, int multiple);
     /* start device linking session as responder */
@@ -61,7 +61,7 @@ extern "C" {
     /* returns -1 if haven't startGatherLinkTable or timeout passes*/
     POWERLINE_DLL_ENTRY(int) getNumberOfLinks(Dimmer dimmer);
     /* print links to stderr*/
-    POWERLINE_DLL_ENTRY(int) printLinkTable(Dimmer dimmer);
+    POWERLINE_DLL_ENTRY(const char *) printLinkTable(Dimmer dimmer);
     /* given two insteon devices, link the second as a reponder to the first.
     ** The ls1, ls2, and ls3 values are usually important to the responder, but
     ** are added to the controller link table by this program as well*/
@@ -88,7 +88,7 @@ extern "C" {
     ** pBuf may be zero. Negative return means failed to talk to dimmer. 
     ** Otherwise returns the number of characters written to pBuf*/
     POWERLINE_DLL_ENTRY(int) extendedGet(Dimmer dimmer, unsigned char btn, unsigned char *pBuf, unsigned bufsize);
-    POWERLINE_DLL_ENTRY(int) printExtendedGet(Dimmer dimmer, unsigned char btn);
+    POWERLINE_DLL_ENTRY(const char *) printExtendedGet(Dimmer dimmer, unsigned char btn);
 
     // range for houseCode is 'A' to 'P'. Range for unit is 1 to 16. If X10 is not set, then both are zero.
     POWERLINE_DLL_ENTRY(int) getX10Code(Dimmer dimmer, char *houseCode, unsigned char *unit);

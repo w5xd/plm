@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <fstream>
+#include <sstream>
 #include <deque>
 #include <set>
 #include <map>
@@ -54,7 +55,7 @@ namespace w5xdInsteon {
         int clearModemLinkData();
         int setAllDevices(unsigned char grp, unsigned char v);
         int nextUnusedControlGroup()const;
-        int printModemLinkTable() ;
+        const char * printModemLinkTable() ;
 
         template <class T>
         T *getDeviceAccess(const unsigned char addr[3]);
@@ -108,6 +109,7 @@ namespace w5xdInsteon {
         bool m_haveAllModemLinks;
         typedef std::vector<InsteonLinkEntry> LinkTable_t;
         LinkTable_t  m_ModemLinks;
+        std::ostringstream m_linkTablePrinted;
 
         void startLinking(unsigned char);
         void ioThread();

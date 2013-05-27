@@ -198,26 +198,26 @@ int InsteonDevice::numberOfLinks(int msecToWait) const
     return m_LinkTableComplete ? m_LinkTable.size() : -1;
 }
 
-int InsteonDevice::printLinkTable() const
+const char * InsteonDevice::printLinkTable() 
 {
     boost::mutex::scoped_lock l(m_mutex);
     if (!m_LinkTableComplete) 
     {
        m_plm->cerr() << "No link table retrieved yet" << std::endl;
-       return -1;
+       return 0;
     }
-    std::ostringstream oss;
-    oss << "printLinkTable for device " << m_addr << std::endl << "addr flag group ID ls1 ls2 ls3" << std::endl;
+    m_linkTablePrinted.str() = "";
+    m_linkTablePrinted << "printLinkTable for device " << m_addr << std::endl << "addr flag group ID ls1 ls2 ls3" << std::endl;
     for (LinkTable_t::const_iterator itor = m_LinkTable.begin();
             itor != m_LinkTable.end();
             itor++)
     {
-        oss << std::hex << (int)itor->first << " " ;
-        itor->second.print(oss);
-        oss << std::endl;
+        m_linkTablePrinted << std::hex << (int)itor->first << " " ;
+        itor->second.print(m_linkTablePrinted);
+        m_linkTablePrinted << std::endl;
     }
-    m_plm->cerr() << oss.str() << "end table" << std::endl << std::flush;
-    return 1;
+    m_linkTablePrinted << "end table" << std::endl;
+    return m_linkTablePrinted.str().c_str();
 }
 
 void InsteonDevice::reqAllLinkData(unsigned addr)
@@ -360,14 +360,14 @@ int InsteonDevice::extendedGet(unsigned char btn, unsigned char *pBuf, unsigned 
     return  ret;
 }
 
-int InsteonDevice::printExtendedGet(unsigned char btn)const
+const char * InsteonDevice::printExtendedGet(unsigned char btn)
 {
     boost::mutex::scoped_lock l(m_mutex);
     ExtendedGetResults_t::const_iterator itor = m_ExtendedGetResult.find(btn);
     if (itor == m_ExtendedGetResult.end() ) 
     {
        m_plm->cerr() << "No extended get/set response retrieved yet" << std::endl;
-       return -1;
+       return 0;
     }
     std::ostringstream oss;
     oss << "Extended state for device " << m_addr << std::endl <<
@@ -375,8 +375,8 @@ int InsteonDevice::printExtendedGet(unsigned char btn)const
 "                                             btn  resp unu  unu  X10H X10U RAMP ONLV" << std::endl;
     bufferToStream(oss, &itor->second[0], itor->second.size());
     oss << std::endl;
-    m_plm->cerr() << oss.str() << std::flush;
-    return 1;
+    m_extendedGetPrint[btn] = oss.str();
+    return m_extendedGetPrint[btn].c_str();
 }
 
 int InsteonDevice::createLinkWithModem(unsigned char group, bool amController, 

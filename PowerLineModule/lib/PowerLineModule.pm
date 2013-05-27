@@ -18,21 +18,11 @@ our @ISA = qw(Exporter);
 # If you do not need this, moving things directly into @EXPORT or @EXPORT_OK
 # will save memory.
 our %EXPORT_TAGS = ( 'all' => [ qw(
-	getDimmerAccess
-	getDimmerValue
-	getErrorMessage
-	openPowerLineModem
-	setDimmerValue
-	setErrorLevel
-	shutdownModem
-	createDeviceLink
-	clearModemLinkData
 ) ] );
 
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 
 our @EXPORT = qw(
-	
 );
 
 our $VERSION = '0.01';
@@ -64,6 +54,143 @@ require XSLoader;
 XSLoader::load('PowerLineModule', $VERSION);
 
 # Preloaded methods go here.
+{
+	package PowerLineModule::Dimmer;
+		require PowerLineModule;
+		sub new {
+			my $proto = shift;
+			my $class = ref($proto) || $proto;
+			my $self = { _dimmer => shift	};
+			bless $self, $class;
+			return $self;
+		}
+		sub setValue {
+			my $self = shift;
+			my $res = PowerLineModule::setDimmerValue($self->{_dimmer}, shift);
+		}
+		sub getValue {
+			my $self = shift;
+			return PowerLineModule::getDimmerValue($self->{_dimmer}, shift);
+		}
+		sub readX10Code {
+			my $self = shift;
+			delete $self->{_x10House};
+			delete $self->{_x10Unit};
+			my @dX10 = PowerLineModule::getX10Code($self->{_dimmer});
+			if ($dX10[0] >= 0) {
+				$self->{_x10House} = $dX10[1];
+				$self->{_x10Unit} = $dX10[2];
+			}
+			return $dX10[0];
+		}
+		sub x10House { #returns undef until readX10Code is called
+			my $self = shift;
+			return $self->{_x10House};
+		}
+		sub x10Unit {
+			my $self = shift;
+			return $self->{_x10Unit};
+		}
+		sub startGatherLinkTable {
+			my $self = shift;
+			return PowerLineModule::startGatherLinkTable($self->{_dimmer});
+		}
+		sub getNumberOfLinks {
+			my $self = shift;
+			return PowerLineModule::getNumberOfLinks($self->{_dimmer});
+		}
+		sub printLinkTable {
+			my $self = shift;
+			return PowerLineModule::printLinkTable($self->{_dimmer});
+		}
+		sub extendedGet {
+			my $self = shift;
+			return PowerLineModule::extendedGet($self->{_dimmer}, 1);
+		}
+		sub printExtendedGet {
+			my $self = shift;
+			return PowerLineModule::printExtendedGet($self->{_dimmer}, 1);
+		}
+
+	package PowerLineModule::Keypad;
+		require PowerLineModule;
+		our @ISA = qw(PowerLineModule::Dimmer);    # inherits from Dimmer
+		sub new {
+    			my ($class) = @_;
+			    # Call the constructor of the parent class, Dimmer.
+    			my $self = $class->SUPER::new( $_[1] );
+			$self->{_keypad} = $_[1];
+			bless $self, $class;
+			return $self;
+		}
+		sub setWallLEDbrightness() {
+			my $self = shift;
+			return PowerLineModule::setWallLEDbrightness($self->{_keypad}, shift);
+		}
+		sub extendedGet {
+			my $self = shift;
+			return PowerLineModule::extendedGet($self->{_keypad}, shift);
+		}
+		sub printExtendedGet {
+			my $self = shift;
+			return PowerLineMOdule::printExtendedGet($self->{_keypad}, shift);
+		}
+
+	package PowerLineModule::Modem;
+	require PowerLineModule;
+	sub new {
+		my $class = shift;
+		my $self = {
+			_commPort => shift,
+			_level => shift,
+			_logfileName => shift,
+		};
+		my @res = PowerLineModule::openPowerLineModem(
+			$self->{_commPort}, $self->{_level}, $self->{_logfileName});
+		$self->{_modem} = $res[0];
+		$self->{_wasOpen} = $res[1];
+		bless $self, $class;
+		return $self;
+	}
+	sub wasOpen {
+		my $self = shift;
+		return $self->{_wasOpen};
+	}
+	sub logFileName {
+		my $self = shift;
+		return $self->{_logfileName};
+		}
+	sub commPort {
+		my $self = shift;
+		return $self->{_commPort};
+	}
+	sub openOk {
+		my $self = shift;
+		return $self->{_modem} != 0;
+	}
+	sub getDimmerAccess {
+		my $self = shift;
+                my $dimmer = PowerLineModule::getDimmerAccess($self->{_modem}, shift);
+		if ($dimmer ne 0) {
+			return PowerLineModule::Dimmer->new($dimmer);}
+		else {return 0;}
+	}
+	sub getKeypadAccess {
+		my $self = shift;
+		my $keypad = PowerLineModule::getKeypadAccess($self->{_modem}, shift);
+		if ($keypad ne 0) {
+			return PowerLineModule::Keypad->new($keypad); }
+		else {return 0;}
+	}
+	sub getModemLinkRecords {
+		my $self = shift;
+		return PowerLineModule::getModemLinkRecords($self->{_modem});
+	}
+	sub printLinkTable {
+		my $self = shift;
+		return PowerLineModule::printModemLinkTable($self->{_modem});
+	}
+}
 
 # Autoload methods go after =cut, and are processed by the autosplit program.
 
@@ -73,7 +200,7 @@ __END__
 
 =head1 NAME
 
-PowerLineModule - Perl extension for blah blah blah
+PowerLineModule - Perl extension that reads/writes insteon powerline modem
 
 =head1 SYNOPSIS
 
@@ -95,13 +222,7 @@ None by default.
 =head2 Exportable functions
 
   Dimmer getDimmerAccess(Modem modem, const char *addr)
-  int getDimmerValue(Dimmer dimmer)
-  const char * getErrorMessage(int errNumber)
   Modem openPowerLineModem(const char *commPortName)
-  int setDimmerValue(Dimmer dimmer, unsigned char v)
-  int setErrorLevel(Modem modem, int level)
-  int shutdownModem(Modem modem)
-
 
 
 =head1 SEE ALSO

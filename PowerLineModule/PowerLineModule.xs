@@ -90,7 +90,7 @@ createModemGroupToMatch(group, dimmer)
 	int group
 	Dimmer dimmer
 
-int
+const char *
 printModemLinkTable(modem)
 	Modem modem
 
@@ -114,7 +114,7 @@ int
 getNumberOfLinks(dimmer)
 	Dimmer dimmer
 
-int
+const char *
 printLinkTable(dimmer)
 	Dimmer dimmer
 
@@ -144,13 +144,24 @@ removeDeviceLink(controller, responder, group, ls3)
 	unsigned char ls3
 
 int
+extendedGet(dimmer, btn)
+	Dimmer dimmer
+	unsigned char btn
+	PPCODE:
+		RETVAL = extendedGet(dimmer, btn, 0, 0);
+
+const char *
+printExtendedGet(dimmer, btn)
+	Dimmer dimmer
+	unsigned char btn
+
+int
 getX10Code(dimmer)
 	Dimmer dimmer
 	INIT:
 	    char houseCode=0;
 	    unsigned char unit=0;
 	PPCODE:
-            extendedGet(dimmer, 1, 0, 0); /* ask for btn 1 first*/
 	    RETVAL = getX10Code(dimmer, &houseCode, &unit);
             XPUSHs(sv_2mortal(newSViv(RETVAL))); /* [0]*/
 	    XPUSHs(sv_2mortal(newSVpvn(&houseCode, 1))); /* will be [1] */

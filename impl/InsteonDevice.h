@@ -68,9 +68,9 @@ public:
     int unLinkAsController(unsigned char group);
     int startGatherLinkTable();
     int numberOfLinks(int msecToWait = 5000)const;
-    int printLinkTable() const;
+    const char * printLinkTable() ;
     int extendedGet(unsigned char btn, unsigned char *pBuf, unsigned bufSize);
-    int printExtendedGet(unsigned char btn)const;
+    const char * printExtendedGet(unsigned char btn);
     int createLinkWithModem(unsigned char group, bool amController, 
                                        unsigned char ls1, unsigned char ls2, unsigned char ls3);
     int createLinkWithModem(unsigned char group, bool amController, InsteonDevice *other, unsigned char og);
@@ -107,6 +107,8 @@ protected:
     bool m_requestedOneLink;
     unsigned m_finalAddr;
     unsigned m_lastAcqCommand1;
+    std::ostringstream m_linkTablePrinted;
+    std::map<unsigned char, std::string> m_extendedGetPrint;
     typedef std::map<unsigned char, std::vector<unsigned char> > ExtendedGetResults_t;
     ExtendedGetResults_t m_ExtendedGetResult;
     std::vector<unsigned char> m_productData;

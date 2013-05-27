@@ -18,34 +18,46 @@ BEGIN { use_ok('PowerLineModule') };
 BEGIN {
 	my $Msg = PowerLineModule::getErrorMessage(-1); 
 	ok($Msg eq "CreateFile failed", "getErrorMsg");
-	diag("Need two env variabls, POWERLINEMODULE_COMPORT and POWERLINEMODULE_DEVID\n");
+	diag("Need two env variables, POWERLINEMODULE_COMPORT and POWERLINEMODULE_DEVID\n");
 	if (!defined($ENV{POWERLINEMODULE_COMPORT}) || !defined($ENV{POWERLINEMODULE_DEVID})) { return 1; }
-	diag("They are now ".$ENV{POWERLINEMODULE_COMPORT}." and ".$ENV{POWERLINEMODULE_DEVID}."\n");
-	my @Modem;
-	@Modem = PowerLineModule::openPowerLineModem($ENV{POWERLINEMODULE_COMPORT}, 2, 0);
-	ok(scalar(@Modem) == 2, "openPowerLineModem");
-	diag("Modem: " . $Modem[0] . "," . $Modem[1] ."\n");
-	if ($Modem[0] != 0) {
-		my $Dimmer = PowerLineModule::getDimmerAccess($Modem[0], $ENV{POWERLINEMODULE_DEVID});
+	diag("They are read as: ".$ENV{POWERLINEMODULE_COMPORT}." and ".$ENV{POWERLINEMODULE_DEVID}."\n");
+
+	my $mdm = PowerLineModule::Modem->new($ENV{POWERLINEMODULE_COMPORT}, 0, "");
+	my $res = $mdm->openOk();
+        ok($res eq 1, "Modem openOk");
+	if ($res) {
+		my $mlr = $mdm->getModemLinkRecords();
+		diag("numModemLinks=".$mlr."\n".$mdm->printLinkTable());
+		my $Dimmer = $mdm->getDimmerAccess($ENV{POWERLINEMODULE_DEVID});
 		ok($Dimmer != 0, "accessDimmer");
-		diag("Dimmer: ".$Dimmer."\n");
 		if ($Dimmer != 0) {
-			my $v = PowerLineModule::getDimmerValue($Dimmer, 0);
-			ok($v == 0, "setDimmerValue");
-			PowerLineModule::setDimmerValue($Dimmer, 100);
+			$Dimmer->setValue(100);
 			sleep(5);
+			my $v = $Dimmer->getValue(0);
+			ok($v == 100, "getDimmerValue");
 			diag("Setting Dimmer to 0\n");
-			PowerLineModule::setDimmerValue($Dimmer, 0);
+			$Dimmer->setValue(0);
 			sleep(5);
-			my @dX10 = PowerLineModule::getX10Code($Dimmer);
-			ok(scalar(@dX10) == 3, "getX10Code");
-			diag("getX10Code=".$dX10[0].", hc=".$dX10[1].", unit=".$dX10[2]."\n");
+			$Dimmer->extendedGet();
+			my $X10 = $Dimmer->readX10Code();
+			ok($X10 >= 0, "getX10Code");
+			diag("readX10Code=".$X10.", hc=".$Dimmer->x10House().", unit=".$Dimmer->x10Unit."\n");
+			diag("Dimmer extended get:\n".$Dimmer->printExtendedGet());
+			$Dimmer->startGatherLinkTable();
+			my $nLinks = $Dimmer->getNumberOfLinks();
+			my $lTable = $Dimmer->printLinkTable();
+			diag("Dimmer has ".$nLinks." links.\n".$lTable);
 		}	
-		my $Keypad = PowerLineModule::getKeypadAccess($Modem[0], $ENV{POWERLINEMODULE_DEVID});
+		my $Keypad = $mdm->getKeypadAccess($ENV{POWERLINEMODULE_DEVID});
 		ok ($Keypad != 0, "accessKeypad");
 		if ($Keypad != 0) {
-			sleep(10);
-			PowerLineModule::setWallLEDbrightness($Keypad, 32);
+			diag("Keypad dimmer ".$Keypad->{_dimmer}. " kp=".$Keypad->{_keypad}."\n");
+			$Keypad->setValue(0);
+			sleep(5);
+			$Keypad->setValue(1);
+			sleep(5);
+			$Keypad->setWallLEDbrightness(32);
 		}
 	}
+	1;
 };

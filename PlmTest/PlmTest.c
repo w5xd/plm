@@ -401,7 +401,12 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
         getModemLinkRecords(m);
 
     if (printModemLinks)
-        printModemLinkTable(m);
+    {
+        const char *modLinks = 
+            printModemLinkTable(m);
+        if (modLinks)
+            fprintf(stderr, "%s", modLinks);
+    }
 
     if (allStuff)
     {
@@ -468,9 +473,12 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
         if (printDimmerLinks)
         {
             int links;
+            const char *dimLinks;
             startGatherLinkTable(dimmer);
             links = getNumberOfLinks(dimmer);
-            printLinkTable(dimmer);
+            dimLinks = printLinkTable(dimmer);
+            if (dimLinks)
+                fprintf(stderr, "%s", dimLinks);
         }
         for (jj = 1; jj <= printExtRecords; jj++)
         {
@@ -482,7 +490,11 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
             }
         }
         for (jj = 1; jj <= printExtRecords; jj++)
-             printExtendedGet(dimmer, (unsigned char)jj);
+        {
+             const char * eg = printExtendedGet(dimmer, (unsigned char)jj);
+             if (eg)
+                 fprintf(stderr, "%s", eg);
+        }
 
         if (X10)
         {
