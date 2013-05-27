@@ -31,7 +31,7 @@ BEGIN {
 	if ($res) {
 		my $mlr = $mdm->getModemLinkRecords();
 		diag("numModemLinks=".$mlr."\n".$mdm->printLinkTable());
-		my $Dimmer = $mdm->getDimmerAccess($ENV{POWERLINEMODULE_DEVID});
+		my $Dimmer = $mdm->getDimmer($ENV{POWERLINEMODULE_DEVID});
 		ok($Dimmer != 0, "accessDimmer");
 		if ($Dimmer != 0) {
 			$Dimmer->setValue(100);
@@ -42,16 +42,15 @@ BEGIN {
 			$Dimmer->setValue(0);
 			sleep(5);
 			my $egRes = $Dimmer->extendedGet();
-			diag("Dimmer extended get:".$egRes."\n".$Dimmer->printExtendedGet());
-			my $X10 = $Dimmer->readX10Code();
-			ok($X10 >= 0, "getX10Code");
-			diag("readX10Code=".$X10.", hc=".$Dimmer->x10House().", unit=".$Dimmer->x10Unit."\n");
+			ok($egRes eq 0, "PowerLineModule::Dimmer::extendedGet");
+			diag($Dimmer->printExtendedGet());
+			diag("X10HouseCode=".$Dimmer->x10House().", unit=".$Dimmer->x10Unit."\n");
 			$Dimmer->startGatherLinkTable();
 			my $nLinks = $Dimmer->getNumberOfLinks();
 			my $lTable = $Dimmer->printLinkTable();
 			diag("Dimmer has ".$nLinks." links.\n".$lTable);
 		}	
-		my $Keypad = $mdm->getKeypadAccess($ENV{POWERLINEMODULE_DEVID});
+		my $Keypad = $mdm->getKeypad($ENV{POWERLINEMODULE_DEVID});
 		ok ($Keypad != 0, "accessKeypad");
 		if ($Keypad != 0) {
 			diag("Keypad dimmer ".$Keypad->{_dimmer}. " kp=".$Keypad->{_keypad}."\n");
