@@ -175,6 +175,7 @@ setX10Code(dimmer, houseCode, unit)
 	unsigned char unit
 	PPCODE:
 		RETVAL = setX10Code(dimmer, houseCode[0], unit);
+                XPUSHs(sv_2mortal(newSViv(RETVAL)));
 
 Keypad
 getKeypadAccess(modem, addr)
