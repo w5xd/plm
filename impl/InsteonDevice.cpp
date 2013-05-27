@@ -320,6 +320,7 @@ int InsteonDevice::extendedGet(unsigned char btn, unsigned char *pBuf, unsigned 
         if (itor != m_ExtendedGetResult.end())
             m_ExtendedGetResult.erase(itor);
     }
+    itor = m_ExtendedGetResult.end();
     static const int secondsToWait = 5;
     boost::mutex::scoped_lock l(m_mutex);
     int attempts = 2;

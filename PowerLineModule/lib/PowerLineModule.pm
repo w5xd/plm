@@ -66,13 +66,17 @@ XSLoader::load('PowerLineModule', $VERSION);
 		}
 		sub setValue {
 			my $self = shift;
-			my $res = PowerLineModule::setDimmerValue($self->{_dimmer}, shift);
+			return PowerLineModule::setDimmerValue($self->{_dimmer}, shift);
+		}
+		sub setFast {
+			my $self = shift;
+			return PowerLineModule::setDimmerFast($self->{_dimmer}, shift);
 		}
 		sub getValue {
 			my $self = shift;
 			return PowerLineModule::getDimmerValue($self->{_dimmer}, shift);
 		}
-		sub readX10Code {
+		sub readX10Code { #need to have previously called extendedGet
 			my $self = shift;
 			delete $self->{_x10House};
 			delete $self->{_x10Unit};
@@ -99,7 +103,7 @@ XSLoader::load('PowerLineModule', $VERSION);
 			my $self = shift;
 			return PowerLineModule::getNumberOfLinks($self->{_dimmer});
 		}
-		sub printLinkTable {
+		sub printLinkTable { #nothing to print until after startGatherLinkTable/getNumberOfLinks
 			my $self = shift;
 			return PowerLineModule::printLinkTable($self->{_dimmer});
 		}
@@ -107,7 +111,7 @@ XSLoader::load('PowerLineModule', $VERSION);
 			my $self = shift;
 			return PowerLineModule::extendedGet($self->{_dimmer}, 1);
 		}
-		sub printExtendedGet {
+		sub printExtendedGet { #nothing to print until after call to extendedGet
 			my $self = shift;
 			return PowerLineModule::printExtendedGet($self->{_dimmer}, 1);
 		}
@@ -131,7 +135,7 @@ XSLoader::load('PowerLineModule', $VERSION);
 			my $self = shift;
 			return PowerLineModule::extendedGet($self->{_keypad}, shift);
 		}
-		sub printExtendedGet {
+		sub printExtendedGet { #nothing to print until after call to extendedGet
 			my $self = shift;
 			return PowerLineMOdule::printExtendedGet($self->{_keypad}, shift);
 		}
@@ -186,7 +190,7 @@ XSLoader::load('PowerLineModule', $VERSION);
 		my $self = shift;
 		return PowerLineModule::getModemLinkRecords($self->{_modem});
 	}
-	sub printLinkTable {
+	sub printLinkTable { #nothing to print until after getModemLinkRecords
 		my $self = shift;
 		return PowerLineModule::printModemLinkTable($self->{_modem});
 	}

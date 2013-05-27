@@ -149,6 +149,7 @@ extendedGet(dimmer, btn)
 	unsigned char btn
 	PPCODE:
 		RETVAL = extendedGet(dimmer, btn, 0, 0);
+                XPUSHs(sv_2mortal(newSViv(RETVAL)));
 
 const char *
 printExtendedGet(dimmer, btn)

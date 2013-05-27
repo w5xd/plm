@@ -22,7 +22,10 @@ BEGIN {
 	if (!defined($ENV{POWERLINEMODULE_COMPORT}) || !defined($ENV{POWERLINEMODULE_DEVID})) { return 1; }
 	diag("They are read as: ".$ENV{POWERLINEMODULE_COMPORT}." and ".$ENV{POWERLINEMODULE_DEVID}."\n");
 
-	my $mdm = PowerLineModule::Modem->new($ENV{POWERLINEMODULE_COMPORT}, 0, "");
+	my $mdm = PowerLineModule::Modem->new($ENV{POWERLINEMODULE_COMPORT}, 
+		0, #no diagnostics to log file
+		"" #no log file to write to
+	);
 	my $res = $mdm->openOk();
         ok($res eq 1, "Modem openOk");
 	if ($res) {
@@ -38,11 +41,11 @@ BEGIN {
 			diag("Setting Dimmer to 0\n");
 			$Dimmer->setValue(0);
 			sleep(5);
-			$Dimmer->extendedGet();
+			my $egRes = $Dimmer->extendedGet();
+			diag("Dimmer extended get:".$egRes."\n".$Dimmer->printExtendedGet());
 			my $X10 = $Dimmer->readX10Code();
 			ok($X10 >= 0, "getX10Code");
 			diag("readX10Code=".$X10.", hc=".$Dimmer->x10House().", unit=".$Dimmer->x10Unit."\n");
-			diag("Dimmer extended get:\n".$Dimmer->printExtendedGet());
 			$Dimmer->startGatherLinkTable();
 			my $nLinks = $Dimmer->getNumberOfLinks();
 			my $lTable = $Dimmer->printLinkTable();
