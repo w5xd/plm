@@ -62,6 +62,7 @@ XSLoader::load( 'PowerLineModule', $VERSION );
 
 # Preloaded methods go here.
 {
+
     package PowerLineModule::Dimmer;
     require PowerLineModule;
 
@@ -100,23 +101,23 @@ XSLoader::load( 'PowerLineModule', $VERSION );
         return $dX10[0];
     }
 
-    sub x10House {       #need to have previously called extendedGet
+    sub x10House {        #need to have previously called extendedGet
         my $self = shift;
-	$self->_readX10Code();
+        $self->_readX10Code();
         return $self->{_x10House};
     }
 
-    sub x10Unit {	#need to have previously called extendedGet
+    sub x10Unit {         #need to have previously called extendedGet
         my $self = shift;
-	$self->_readX10Code();
+        $self->_readX10Code();
         return $self->{_x10Unit};
     }
 
     sub setX10Code {
-	my $self = shift;
-	my $hc = shift;
-	my $unit = shift;
-	return PowerLineModule::setX10Code( $self->{_dimmer}, $hc, $unit);
+        my $self = shift;
+        my $hc   = shift;
+        my $unit = shift;
+        return PowerLineModule::setX10Code( $self->{_dimmer}, $hc, $unit );
     }
 
     sub startGatherLinkTable {
@@ -146,37 +147,40 @@ XSLoader::load( 'PowerLineModule', $VERSION );
     }
 
     sub linkAsController {
-	my $self = shift;
-	return PowerLineModule::linkAsController( $self->{_dimmer}, shift);
+        my $self = shift;
+        return PowerLineModule::linkAsController( $self->{_dimmer}, shift );
     }
 
     sub unLinkAsController {
-	my $self = shift;
-	return PowerLineModule::unLinkAsController( $self->{_dimmer}, shift);
+        my $self = shift;
+        return PowerLineModule::unLinkAsController( $self->{_dimmer}, shift );
     }
 
     sub createDeviceLink {
-	my $self = shift;
-	my $responder = shift;
-	my $group = shift;
-	my $ls1 = shift; my $ls2 = shift; my $ls3 = shift;
-	return PowerLineModule::createDeviceLink( $self->{_dimmer},
-						$responder->{_dimmer},
-						$group, $ls1, $ls2, $ls3);
+        my $self      = shift;
+        my $responder = shift;
+        my $group     = shift;
+        my $ls1       = shift;
+        my $ls2       = shift;
+        my $ls3       = shift;
+        return PowerLineModule::createDeviceLink( $self->{_dimmer},
+            $responder->{_dimmer}, $group, $ls1, $ls2, $ls3 );
     }
 
     sub removeDeviceLink {
-	my $self = shift;
-	my $responder = shift;
-	my $group = shift;
-	my $ls3 = shift;
-	return PowerLineModule::removeDeviceLink( $self->{_dimmer}, $responder->{_dimmer}, $group, $ls3);
+        my $self      = shift;
+        my $responder = shift;
+        my $group     = shift;
+        my $ls3       = shift;
+        return PowerLineModule::removeDeviceLink( $self->{_dimmer},
+            $responder->{_dimmer}, $group, $ls3 );
     }
 
     sub createModemGroupToMatch {
-	my $self = shift;
-	my $group = shift;
-	return PowerLineModule::createModemGroupToMatch($group, $self->{_dimmer});
+        my $self  = shift;
+        my $group = shift;
+        return PowerLineModule::createModemGroupToMatch( $group,
+            $self->{_dimmer} );
     }
 
     package PowerLineModule::Keypad;
@@ -275,19 +279,21 @@ XSLoader::load( 'PowerLineModule', $VERSION );
     }
 
     sub setAllDevices {
-	my $self = shift; my $group = shift; my $val = shift;
-	return PowerLineModule::setAllDevices( $self->{_modem}, $group, $val);
+        my $self  = shift;
+        my $group = shift;
+        my $val   = shift;
+        return PowerLineModule::setAllDevices( $self->{_modem}, $group, $val );
     }
 
     sub getNextUnusedControlGroup {
-	my $self = shift;
-	return PowerLineModule::getNextUnusedControlGroup( $self->{_modem});
+        my $self = shift;
+        return PowerLineModule::getNextUnusedControlGroup( $self->{_modem} );
     }
 
     sub deleteGroupLinks {
-	my $self = shift;
-	my $group = shift;
-	return PowerLineModule::deleteGroupLinks( $self->{_modem}, $group);
+        my $self  = shift;
+        my $group = shift;
+        return PowerLineModule::deleteGroupLinks( $self->{_modem}, $group );
     }
 }
 
@@ -295,7 +301,6 @@ XSLoader::load( 'PowerLineModule', $VERSION );
 
 1;
 __END__
-
 
 =head1 NAME
 
