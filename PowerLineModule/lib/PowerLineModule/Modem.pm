@@ -46,7 +46,7 @@ sub openOk {
 sub getDimmer {
     my $self = shift;
     my $dimmer = PowerLineModule::getDimmerAccess( $self->{_modem}, shift );
-    if ( $dimmer ne 0 ) {
+    if ( $dimmer != 0 ) {
         return PowerLineModule::Dimmer->new($dimmer);
     }
     else { return 0; }
@@ -55,7 +55,7 @@ sub getDimmer {
 sub getKeypad {
     my $self = shift;
     my $keypad = PowerLineModule::getKeypadAccess( $self->{_modem}, shift );
-    if ( $keypad ne 0 ) {
+    if ( $keypad != 0 ) {
         return PowerLineModule::Keypad->new($keypad);
     }
     else { return 0; }
