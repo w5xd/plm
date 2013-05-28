@@ -1,6 +1,7 @@
 /* Copyright (c) 2013 by Wayne Wright, Round Rock, Texas.
 ** See license at http://github.com/w5xd/plm/blob/master/LICENSE.md */
 #include <iomanip>
+#include <sstream>
 #include <fstream>
 #include <boost/bind.hpp>
 #include "PlmMonitor.h"
@@ -916,16 +917,17 @@ const char * PlmMonitor::printModemLinkTable()
         cerr() << "Modem links not retrieved yet" << std::endl;
         return 0;
     }
-    m_linkTablePrinted.str() = "";
-    m_linkTablePrinted << "Modem links" << std::endl << "flag group ID ls1 ls2 ls3" << std::endl;
+    std::ostringstream linkTablePrinted;
+    linkTablePrinted << "Modem links" << std::endl << "flag group ID ls1 ls2 ls3" << std::endl;
     for (LinkTable_t::const_iterator itor = m_ModemLinks.begin();
             itor != m_ModemLinks.end();
             itor++)
     {
-        itor->print(m_linkTablePrinted);
-        m_linkTablePrinted << std::endl;
-    } 
-    return m_linkTablePrinted.str().c_str();
+        itor->print(linkTablePrinted);
+        linkTablePrinted << std::endl;
+    }
+    m_linkTablePrinted = linkTablePrinted.str(); 
+    return m_linkTablePrinted.c_str();
 }
 
 // force a couple of template instantiations. These are currently used above, but show how to make more, if needed

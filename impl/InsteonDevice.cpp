@@ -1,6 +1,7 @@
 /* Copyright (c) 2013 by Wayne Wright, Round Rock, Texas.
 ** See license at http://github.com/w5xd/plm/blob/master/LICENSE.md */
 #include <cstring>
+#include <sstream>
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include "InsteonDevice.h"
 #include "PlmMonitor.h"
@@ -206,18 +207,19 @@ const char * InsteonDevice::printLinkTable()
        m_plm->cerr() << "No link table retrieved yet" << std::endl;
        return 0;
     }
-    m_linkTablePrinted.str() = "";
-    m_linkTablePrinted << "printLinkTable for device " << m_addr << std::endl << "addr flag group ID ls1 ls2 ls3" << std::endl;
+    std::ostringstream linkTablePrinted;
+    linkTablePrinted << "printLinkTable for device " << m_addr << std::endl << "addr flag group ID ls1 ls2 ls3" << std::endl;
     for (LinkTable_t::const_iterator itor = m_LinkTable.begin();
             itor != m_LinkTable.end();
             itor++)
     {
-        m_linkTablePrinted << std::hex << (int)itor->first << " " ;
-        itor->second.print(m_linkTablePrinted);
-        m_linkTablePrinted << std::endl;
+        linkTablePrinted << std::hex << (int)itor->first << " " ;
+        itor->second.print(linkTablePrinted);
+        linkTablePrinted << std::endl;
     }
-    m_linkTablePrinted << "end table" << std::endl;
-    return m_linkTablePrinted.str().c_str();
+    linkTablePrinted << "end table" << std::endl << std::flush;
+    m_linkTablePrinted = linkTablePrinted.str();
+    return m_linkTablePrinted.c_str();
 }
 
 void InsteonDevice::reqAllLinkData(unsigned addr)

@@ -107,7 +107,7 @@ protected:
     bool m_requestedOneLink;
     unsigned m_finalAddr;
     unsigned m_lastAcqCommand1;
-    std::ostringstream m_linkTablePrinted;
+    std::string m_linkTablePrinted;
     std::map<unsigned char, std::string> m_extendedGetPrint;
     typedef std::map<unsigned char, std::vector<unsigned char> > ExtendedGetResults_t;
     ExtendedGetResults_t m_ExtendedGetResult;

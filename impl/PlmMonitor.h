@@ -5,7 +5,6 @@
 #include <string>
 #include <vector>
 #include <fstream>
-#include <sstream>
 #include <deque>
 #include <set>
 #include <map>
@@ -109,7 +108,7 @@ namespace w5xdInsteon {
         bool m_haveAllModemLinks;
         typedef std::vector<InsteonLinkEntry> LinkTable_t;
         LinkTable_t  m_ModemLinks;
-        std::ostringstream m_linkTablePrinted;
+        std::string m_linkTablePrinted;
 
         void startLinking(unsigned char);
         void ioThread();
