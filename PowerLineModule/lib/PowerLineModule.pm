@@ -1,3 +1,5 @@
+# Copyright (c) 2013 by Wayne Wright, Round Rock, Texas.
+# See license at http://github.com/w5xd/plm/blob/master/LICENSE.md
 package PowerLineModule;
 use 5.010001;
 use strict;
@@ -104,7 +106,7 @@ Wayne Wright, w5xd@alum.mit.edu
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2012 by Wayne Wright, W5XD
+Copyright (C) 2013 by Wayne Wright, W5XD
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself, either Perl version 5.14.2 or,
