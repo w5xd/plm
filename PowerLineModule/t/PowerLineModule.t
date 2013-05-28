@@ -9,6 +9,10 @@ use strict;
 use warnings;
 
 use Test::More tests => 7;
+use PowerLineModule::Modem;
+use PowerLineModule::Dimmer;
+use PowerLineModule::Keypad;
+
 BEGIN { use_ok('PowerLineModule') };
 
 #########################
