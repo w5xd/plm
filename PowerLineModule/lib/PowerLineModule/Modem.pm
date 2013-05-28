@@ -5,6 +5,8 @@ use 5.010001;
 use strict;
 use warnings;
 require PowerLineModule;
+require PowerLineModule::Dimmer;
+require PowerLineModule::Keypad;
 
 sub new {
     my $class = shift;
@@ -85,6 +87,11 @@ sub deleteGroupLinks {
     my $self  = shift;
     my $group = shift;
     return PowerLineModule::deleteGroupLinks( $self->{_modem}, $group );
+}
+
+sub cancelLinking {
+   my $self = shift;
+   return PowerLineModule::cancelLinking( $self->{_modem} );
 }
 
 1;
