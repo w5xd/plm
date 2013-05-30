@@ -64,16 +64,13 @@ public:
     bool operator < (const InsteonDevice &) const;
     virtual void incomingMessage(const std::vector<unsigned char> &, boost::shared_ptr<InsteonCommand>);
 
-    int linkAsController(unsigned char group);
-    int unLinkAsController(unsigned char group);
+    int linkPlm(bool amController, unsigned char group, unsigned char ls1=2, unsigned char ls2=2, unsigned char ls3=2);
+    int unLinkPlm(bool amController, unsigned char group, unsigned char ls3 = 0);
     int startGatherLinkTable();
     int numberOfLinks(int msecToWait = 5000)const;
     const char * printLinkTable() ;
     int extendedGet(unsigned char btn, unsigned char *pBuf, unsigned bufSize);
     const char * printExtendedGet(unsigned char btn);
-    int createLinkWithModem(unsigned char group, bool amController, 
-                                       unsigned char ls1, unsigned char ls2, unsigned char ls3);
-    int createLinkWithModem(unsigned char group, bool amController, InsteonDevice *other, unsigned char og);
     int createModemGroupToMatch(int group);
     bool linktableComplete()const{boost::mutex::scoped_lock l(m_mutex); return m_LinkTableComplete;}
 
@@ -90,6 +87,9 @@ public:
     const InsteonDeviceAddr &addr()const{return m_addr;}
     int getProductData();
 protected:
+    int createLinkWithModem(unsigned char group, bool amController, InsteonDevice *other, unsigned char og);
+    int createLinkWithModem(unsigned char group, bool amController, 
+                                       unsigned char ls1, unsigned char ls2, unsigned char ls3);
     int sendExtendedCommand(unsigned char button, unsigned char d2, unsigned char d3=0, unsigned char d4=0);
     int linkAddr(const InsteonDeviceAddr &dev, unsigned char grp, bool isControl, unsigned char ls3)const;
     bool amRespondingTo(const InsteonDeviceAddr &dev, unsigned char grp)const; 
@@ -113,7 +113,7 @@ protected:
     ExtendedGetResults_t m_ExtendedGetResult;
     std::vector<unsigned char> m_productData;
     static const char X10HouseCodeToLetter[16];
-    static const char X10HouseLetterToCode[16];//subtract 'A' from letter to index into this table
+    static const char X10HouseLetterToBits[16];//subtract 'A' from letter to index into this table
     static const char X10WheelCodeToBits[17]; // wheel codes 1 through 16 are valid
     static const char X10BitsToWheelCode[16]; // shift right 1 bit position to index into this table
     int m_incomingMessageCount;

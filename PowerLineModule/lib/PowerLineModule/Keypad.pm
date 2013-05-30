@@ -24,11 +24,49 @@ sub setWallLEDbrightness() {
 
 sub extendedGet {
     my $self = shift;
-    return PowerLineModule::extendedGet( $self->{_keypad}, shift );
+    my $btn = shift;
+    return PowerLineModule::extendedGet( $self->{_keypad}, $btn );
 }
 
 sub printExtendedGet {    #nothing to print until after call to extendedGet
     my $self = shift;
-    return PowerLineMOdule::printExtendedGet( $self->{_keypad}, shift );
+    my $btn = shift;
+    return PowerLineModule::printExtendedGet( $self->{_keypad}, $btn );
+}
+
+sub _getX10Code {
+    my $self = shift;
+    my $btn = shift;
+    my @ret = PowerLineModule::getBtnX10Code($self->{_keypad}, $btn);
+    my $hc = $self->{_kpX10House};
+    if (!defined($hc)) { $hc = {};}
+    my $un = $self->{_kpX10Unit};
+    if (!defined($un)) { $un = {};}
+    $hc->{$btn} = $ret[1];
+    $un->{$btn} = $ret[2];
+    $self->{_kpX10House} = $hc;
+    $self->{_kpX10Unit} = $un;
+}
+
+sub x10House {
+    my $self = shift;
+    my $btn = shift;
+    $self->_getX10Code($btn);
+    return $self->{_kpX10House}{$btn};
+}
+
+sub x10Unit {
+    my $self = shift;
+    my $btn = shift;
+    $self->_getX10Code($btn);
+    return $self->{_kpX10Unit}{$btn};
+}
+
+sub setX10Code {
+    my $self = shift;
+    my $hc = shift;
+    my $unit = shift;
+    my $btn = shift;
+    return PowerLineModule::setBtnX10Code($self->{_keypad}, $hc, $unit, $btn);
 }
 1;

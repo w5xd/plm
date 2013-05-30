@@ -250,22 +250,20 @@ int InsteonDevice::startGatherLinkTable()
     return 1;
 }
 
-int InsteonDevice::linkAsController(unsigned char grp)
+int InsteonDevice::linkPlm(bool amController, unsigned char grp, unsigned char ls1, unsigned char ls2, unsigned char ls3)
 {
-     int res = m_plm->createLink(this, false, grp, 0x80, 2, 2, 2);
+     int res = m_plm->createLink(this, !amController, grp, 0x80, ls1, ls2, ls3);
      if (res < 0)
             return -1;    
 
-    return createLinkWithModem(grp, true, 2, 2, 2);
+    return createLinkWithModem(grp, amController, ls1, ls2, ls3);
 }
 
-int InsteonDevice::unLinkAsController(unsigned char grp)
+int InsteonDevice::unLinkPlm(bool amController, unsigned char grp, unsigned char ls3)
 {
-     int res = m_plm->removeLink(this, false, grp);
-     if (res < 0)
-            return -1;    
-
-    return removeLinks(m_plm->insteonID(), grp,  true, 0);
+     int res = m_plm->removeLink(this, !amController, grp);
+     int res2 =  removeLinks(m_plm->insteonID(), grp,  amController, ls3);
+     return std::min(res, res2);
 }
 
 
@@ -611,12 +609,12 @@ int InsteonDevice::removeLinks(const InsteonDeviceAddr &addr, unsigned char grou
 // http://software.x10.com/pub/manuals/xtdcode.pdf
 const char InsteonDevice::X10HouseCodeToLetter[] =
 {    'M', 'E', 'C', 'K', 'O', 'G', 'A', 'I', 'N', 'F', 'D', 'L', 'P', 'H', 'B', 'J'};
-const char InsteonDevice::X10HouseLetterToCode[] = 
-{    6, 14, 2, 10, 1, 9, 5, 13, 7, 15, 3, 11, 0, 8, 4, 12};
-const char InsteonDevice::X10WheelCodeToBits[] =
-{   0, 0x0c, 0x1c, 0x4, 0x14, 0x2, 0x12, 0xa, 0x1a, 0xe, 0x1e, 0x6, 0x16, 0x0, 0x10, 0x8, 0x18};
+const char InsteonDevice::X10HouseLetterToBits[] = 
+{    6, 0xe, 2, 0xa, 1, 9, 5, 0xd, 7, 0xf, 3, 0xb, 0, 8, 4, 0xc};
 const char InsteonDevice::X10BitsToWheelCode[]=
 {   13, 5, 3, 11, 15, 7, 1, 9, 14, 6, 4, 12, 16, 8, 2, 10};
+const char InsteonDevice::X10WheelCodeToBits[] =
+{   0, 0x0c, 0x1c, 0x4, 0x14, 0x2, 0x12, 0xa, 0x1a, 0xe, 0x1e, 0x6, 0x16, 0x0, 0x10, 0x8, 0x18};
 
 int InsteonDevice::getX10Code(char &houseCode, unsigned char &unit, unsigned char btn) const
 {
@@ -649,7 +647,7 @@ int InsteonDevice::setX10Code(char houseCode, unsigned char unit, unsigned char 
             return -12;
         if ((unit < 1) || (unit > 16))
             return -13;
-        hc = X10HouseLetterToCode[houseCode - 'A'];
+        hc = X10HouseLetterToBits[houseCode - 'A'];
         u = X10WheelCodeToBits[unit];
     }
     return sendExtendedCommand(btn, 0x4, hc, u);

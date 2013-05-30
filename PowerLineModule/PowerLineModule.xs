@@ -42,14 +42,20 @@ getDimmerValue(dimmer, fromCache)
 	int	fromCache
 
 int
-linkAsController(dimmer, group)
+linkPlm(dimmer, amController, group, ls1, ls2, ls3)
 	Dimmer	dimmer
-	int	group
+	int 	amController
+	unsigned char	group
+	unsigned char 	ls1
+	unsigned char	ls2
+	unsigned char	ls3
 
 int
-unLinkAsController(dimmer, group)
+unLinkPlm(dimmer, amController, group, ls3)
 	Dimmer	dimmer
-	int	group
+	int	amController
+	unsigned char	group
+	unsigned char 	ls3
 
 int
 startGatherLinkTable(dimmer)
@@ -204,4 +210,26 @@ setNonToggleState(keypad, button, nonToggle)
 	Keypad keypad
 	unsigned char button
 	unsigned char nonToggle
+
+int getBtnX10Code(keypad, btn)
+	Keypad keypad
+	unsigned char btn
+	INIT:
+	    char houseCode=0;
+	    unsigned char unit=0;
+	PPCODE:
+	    RETVAL = getBtnX10Code(keypad, &houseCode, &unit, btn);
+            XPUSHs(sv_2mortal(newSViv(RETVAL))); /* [0]*/
+	    XPUSHs(sv_2mortal(newSVpvn(&houseCode, 1))); /* will be [1] */
+	    XPUSHs(sv_2mortal(newSViv(unit)));   /* will be [2] */
+	
+
+int setBtnX10Code(keypad, houseCode, unit, btn)
+	Keypad keypad
+	char *houseCode
+	unsigned char unit
+	unsigned char btn
+	PPCODE:
+		RETVAL = setBtnX10Code(keypad, houseCode[0], unit, btn);
+                XPUSHs(sv_2mortal(newSViv(RETVAL)));
 

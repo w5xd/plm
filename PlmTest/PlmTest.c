@@ -116,6 +116,8 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
         fprintf(stderr, 
             " -Reset   Reset modem to factory defaults. All other commands ignored\n"
             " -l       Start linking process as controller on group grp (default to 254)\n"
+            "          specify -w to hold.\n"
+            "          if -d is also specified, then don't start link, but instead set PLM as controller to -d\n"
             " -r       Start linking process  as responder on group grp.\n"
             "          If -d not specified, then stay in link mode for 4 minutes and exit\n"
             "          If -d is specified, then set link tables so PLM responds to dimmer on group grp\n"
@@ -395,18 +397,20 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
     {
         clearModemLinkData(m);
         return 0;
-    }
-
-    if (modName && *modName)
-        getModemLinkRecords(m);
+    }     
 
     if (printModemLinks)
     {
-        const char *modLinks = 
+        const char *modLinks;
+        getModemLinkRecords(m);
+        modLinks = 
             printModemLinkTable(m);
         if (modLinks)
             fprintf(stderr, "%s", modLinks);
     }
+
+    if (dimmerAddr)
+        dimmer = getDimmerAccess(m, dimmerAddr);
 
     if (allStuff)
     {
@@ -417,10 +421,15 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
 
     if (cmdStartLink > 0)
     {
-        startLinking(m,linkGroup,1);
-	    SLEEP(4*60);
-        cancelLinking(m);
-        return 0;
+        if (!dimmerAddr)
+        {
+            startLinking(m,linkGroup,1);
+	        SLEEP(*waitSeconds);
+            cancelLinking(m);
+            return 0;
+        }
+        else
+            linkPlm(dimmer, 0, linkGroup, 0, 0, 2);
     }
     else if (cmdStartLink < 0)
     {
@@ -463,7 +472,6 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
         if (keypadArg)
             kp = getKeypadAccess(m, dimmerAddr); // more derived class we ask for first
 
-        dimmer = getDimmerAccess(m, dimmerAddr);
         if (!dimmer)
         {
             fprintf(stderr, "Invalid dimmer address %s\n", dimmerAddr);
@@ -529,7 +537,7 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
         }
         else if (cmdStartLink < 0)
         {
-            linkAsController(dimmer, linkGroup);
+            linkPlm(dimmer, 1, (unsigned char)linkGroup, 0, 0, 2);
             SLEEP(1);
         }
         else
@@ -545,9 +553,6 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
             else
             {
                 setDimmerValue(dimmer, setVal);
-                SLEEP(1);
-                v = getDimmerValue(dimmer, 1);
-                fprintf(stdout, "Getdimmer value=%d\n", v);
             }
         }
 
@@ -615,7 +620,7 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
     }
     else if (controllerU)
     {
-        int v = unLinkAsController(controllerU, linkGroup);
+        int v = unLinkPlm(controllerU, 1, (unsigned char) linkGroup, 0);
         fprintf(stderr, "unLinkAsControll completed %d\n", v);
     }
 

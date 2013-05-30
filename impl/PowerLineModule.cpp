@@ -84,16 +84,16 @@ POWERLINE_DLL_ENTRY(int) getDimmerValue(Dimmer dimmer, int fromCache)
     return reinterpret_cast<w5xdInsteon::Dimmer *>(dimmer)->getDimmerValue(fromCache ? true : false);
 }
 
-POWERLINE_DLL_ENTRY(int) linkAsController(Dimmer dimmer, int group)
+POWERLINE_DLL_ENTRY(int) linkPlm(Dimmer dimmer, int amController, unsigned char group, unsigned char ls1, unsigned char ls2, unsigned char ls3)
 {
     if (!dimmer) return 0;
-    return reinterpret_cast<w5xdInsteon::Dimmer *>(dimmer)->linkAsController(static_cast<unsigned char>(group));
+    return reinterpret_cast<w5xdInsteon::Dimmer *>(dimmer)->linkPlm(amController!=0, group, ls1, ls2, ls3);
 }
 
-POWERLINE_DLL_ENTRY(int) unLinkAsController(Dimmer dimmer, int group)
+POWERLINE_DLL_ENTRY(int) unLinkPlm(Dimmer dimmer, int amController, unsigned char group, unsigned char ls3)
 {
     if (!dimmer) return 0;
-    return reinterpret_cast<w5xdInsteon::Dimmer *>(dimmer)->unLinkAsController(static_cast<unsigned char>(group));
+    return reinterpret_cast<w5xdInsteon::Dimmer *>(dimmer)->unLinkPlm(amController!=0, group, ls3);
 }
 
 POWERLINE_DLL_ENTRY(int) getNumberOfLinks(Dimmer dimmer)
@@ -222,4 +222,17 @@ POWERLINE_DLL_ENTRY(int) setWallLEDbrightness(Keypad keypad, unsigned char brigh
     if (!keypad) return 0;
     return reinterpret_cast<w5xdInsteon::Keypad *>(keypad)->setWallLEDbrightness(bright);
 }
+
+POWERLINE_DLL_ENTRY(int) getBtnX10Code(Keypad keypad, char *houseCode, unsigned char *unit, unsigned char btn)
+{
+    if (!keypad || !houseCode || !unit) return 0;
+    return reinterpret_cast<w5xdInsteon::Keypad *>(keypad)->getX10Code(*houseCode, *unit, btn);
+}
+
+POWERLINE_DLL_ENTRY(int) setBtnX10Code(Keypad keypad, char houseCode, unsigned char unit, unsigned char btn)
+{
+    if (!keypad) return 0;
+    return reinterpret_cast<w5xdInsteon::Keypad *>(keypad)->setX10Code(houseCode, unit, btn);
+}
+
 

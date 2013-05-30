@@ -87,14 +87,24 @@ sub printExtendedGet {    #nothing to print until after call to extendedGet
     return PowerLineModule::printExtendedGet( $self->{_dimmer}, 1 );
 }
 
-sub linkAsController {
+sub linkPlm {
     my $self = shift;
-    return PowerLineModule::linkAsController( $self->{_dimmer}, shift );
+    my $amController = shift;
+    my $group = shift;
+    my $ls1 = shift;
+    my $ls2 = shift;
+    my $ls3 = shift;
+    return PowerLineModule::linkPlm( $self->{_dimmer}, $amController,
+   	$group, $ls1, $ls2, $ls3 );
 }
 
-sub unLinkAsController {
+sub unLinkPlm {
     my $self = shift;
-    return PowerLineModule::unLinkAsController( $self->{_dimmer}, shift );
+    my $amController = shift;
+    my $group = shift;
+    my $ls3 = shift;
+    return PowerLineModule::unLinkPlm( $self->{_dimmer}, 
+    	$amController, $group, $ls3);
 }
 
 sub createDeviceLink {

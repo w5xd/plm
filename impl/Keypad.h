@@ -12,20 +12,34 @@ public:
     Keypad(PlmMonitor *plm, const unsigned char addr[3]);
     ~Keypad();
 
-    int setKeypadFollowMask(unsigned char button, unsigned char mask)
+    int setKeypadFollowMask(unsigned char btn, unsigned char mask)
     {
-        return sendExtendedCommand(button, 2, mask);
+        if ((btn >= 1) && (btn <= 8))
+            return sendExtendedCommand(btn, 2, mask);
+        return -1;
     }
 
-    int setKeypadOffMask(unsigned char button, unsigned char mask)
+    int setKeypadOffMask(unsigned char btn, unsigned char mask)
     {
-        return sendExtendedCommand(button, 3, mask);
+        if ((btn >= 1) && (btn <= 8))
+            return sendExtendedCommand(btn, 3, mask);
+        return -1;
     }
 
-    int setNonToggleState(unsigned char button, unsigned char nonToggle)
+    int setNonToggleState(unsigned char btn, unsigned char nonToggle)
     {
-        return sendExtendedCommand(button, 8, nonToggle);
+        if ((btn >= 1) && (btn <= 8))
+            return sendExtendedCommand(btn, 8, nonToggle);
+        return -1;
     }
+
+    int getX10Code(char &houseCode, unsigned char &unit, unsigned char btn) const 
+    { 
+        if ((btn >= 1) && (btn <= 8))
+            return InsteonDevice::getX10Code(houseCode, unit, btn);
+        return -1;
+    }
+
 
     int setX10Code(char houseCode, unsigned char unit, unsigned char btn)
     {

@@ -51,9 +51,9 @@ extern "C" {
     /* given a dimmer, ask it to start sending over its linking table. */
     POWERLINE_DLL_ENTRY(int) startGatherLinkTable(Dimmer dimmer);
     /* Have the PLM respond to the dimmer on its given group. */
-    POWERLINE_DLL_ENTRY(int) linkAsController(Dimmer dimmer, int group);
+    POWERLINE_DLL_ENTRY(int) linkPlm(Dimmer dimmer, int amController, unsigned char group, unsigned char ls1, unsigned char ls2, unsigned char ls3);
     /* Remove PLM as as reponder to this dimmer on its group */
-    POWERLINE_DLL_ENTRY(int) unLinkAsController(Dimmer dimmer, int group);
+    POWERLINE_DLL_ENTRY(int) unLinkPlm(Dimmer dimmer, int amController, unsigned char group, unsigned char ls3);
     /* given a dimmer, set it */
     POWERLINE_DLL_ENTRY(int) setDimmerValue(Dimmer dimmer, unsigned char v);
     /* given a dimmer, use FAST command (ramp rate = instant. v>0 is ON, v <= 0 OFF*/
@@ -107,6 +107,8 @@ extern "C" {
     POWERLINE_DLL_ENTRY(int) setKeypadOffMask(Keypad keypad, unsigned char button, unsigned char mask);
     POWERLINE_DLL_ENTRY(int) setWallLEDbrightness(Keypad keypad, unsigned char bright);
     POWERLINE_DLL_ENTRY(int) setNonToggleState(Keypad keypad, unsigned char button, unsigned char nonToggle);
+    POWERLINE_DLL_ENTRY(int) getBtnX10Code(Keypad keypad, char *houseCode, unsigned char *unit, unsigned char btn);
+    POWERLINE_DLL_ENTRY(int) setBtnX10Code(Keypad keypad, char houseCode, unsigned char unit, unsigned char btn);
 
 #ifdef __cplusplus
 }
