@@ -67,14 +67,14 @@ const unsigned char InsteonLinkEntry::CONTROLLER_FLAG = 0x40;
 
 void InsteonLinkEntry::print(std::ostream &oss)const
 {
-    oss << std::hex << (int)m_flag << " ";
+    oss << std::hex << std::setw(2) <<  std::setfill(' ') << (int)m_flag << " ";
     if (m_flag & InsteonLinkEntry::CONTROLLER_FLAG)  oss << "c"; else oss << "r";
-    oss << " " <<
+    oss << " " <<  std::setw(2) <<  std::setfill(' ') <<
         (int)m_group << " ";
     bufferToStream(oss, m_addr, 3);
-    oss << " " << (int)m_LinkSpecific1 << 
-        " " << (int)m_LinkSpecific2 << 
-        " " << (int)m_LinkSpecific3;
+    oss << " " << std::setw(2)<< std::setfill(' ') <<(int)m_LinkSpecific1 << 
+        " " << std::setw(2)<< std::setfill(' ') <<(int)m_LinkSpecific2 << 
+        " " << std::setw(2)<< std::setfill(' ') <<(int)m_LinkSpecific3;
 }
 
 InsteonDevice::InsteonDevice(PlmMonitor *p, const unsigned char addr[3]) :
@@ -213,7 +213,7 @@ const char * InsteonDevice::printLinkTable()
             itor != m_LinkTable.end();
             itor++)
     {
-        linkTablePrinted << std::hex << (int)itor->first << " " ;
+        linkTablePrinted << std::hex << std::setw(3) << std::setfill(' ') << (int)itor->first << " " ;
         itor->second.print(linkTablePrinted);
         linkTablePrinted << std::endl;
     }
