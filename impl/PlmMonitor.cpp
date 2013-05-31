@@ -765,7 +765,7 @@ int PlmMonitor::removeLink(InsteonDevice *who, bool amControl, unsigned char grp
 {
     const InsteonDeviceAddr &addr = who->addr();
     unsigned char buf[11] = {
-        0x02, 0x6f, 0x80, amControl ? InsteonLinkEntry::CONTROLLER_FLAG : 0, grp, 
+        0x02, 0x6f, 0x80, amControl ? 0xe2 : 0, grp, 
             addr[0], addr[1], addr[2],
             0, 0, 0};
      boost::shared_ptr<InsteonCommand> p = sendCommandAndWait(buf, sizeof(buf), 12);
