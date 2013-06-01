@@ -585,6 +585,8 @@ int InsteonDevice::removeLinks(const InsteonDeviceAddr &addr, unsigned char grou
                 memcpy(&extMsg[OFFSET_TO_ADDR], m_addr, sizeof(m_addr));
                 memcpy(&extMsg[OFFSET_LINK_ADDR], link.m_addr, 3);
                 extMsg[OFFSET_LINK_FLAG] = link.m_flag & ~InUseFlag;  // clear the InUseFlag
+                if (itor->first == m_LinkTable.begin()->first) // if removing the link with lowest address
+                    memset(&extMsg[OFFSET_LINK_FLAG], 0, 8);   //...then tell device truncate table here.
                 PlaceCheckSum(extMsg);
                 m_lastAcqCommand1 = 0;
                 boost::shared_ptr<InsteonCommand> p = m_plm->sendCommandAndWait(extMsg, sizeof(extMsg), 23); 
