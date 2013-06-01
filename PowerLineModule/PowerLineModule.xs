@@ -61,6 +61,10 @@ int
 startGatherLinkTable(dimmer)
 	Dimmer	dimmer
 
+int
+truncateUnusedLinks(dimmer)
+	Dimmer dimmer
+
 const char *
 getErrorMessage(errNumber)
 	int	errNumber

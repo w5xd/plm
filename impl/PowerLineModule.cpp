@@ -77,7 +77,6 @@ POWERLINE_DLL_ENTRY(Keypad) getKeypadAccess(Modem modem, const char *addr)
         reinterpret_cast<w5xdInsteon::PlmMonitor *>(modem)->getKeypadAccess(addr));
 }
 
-
 POWERLINE_DLL_ENTRY(int) getDimmerValue(Dimmer dimmer, int fromCache)
 {
     if (!dimmer) return 0;
@@ -143,6 +142,12 @@ POWERLINE_DLL_ENTRY(int) removeDeviceLink(Dimmer controller, Dimmer responder,
     return reinterpret_cast<w5xdInsteon::InsteonDevice *>(controller)->removeLink(
         reinterpret_cast<w5xdInsteon::InsteonDevice *>(responder), group,
         ls3);
+}
+
+POWERLINE_DLL_ENTRY(int) truncateUnusedLinks(Dimmer dimmer)
+{
+    if (!dimmer) return 0;
+    return reinterpret_cast<w5xdInsteon::InsteonDevice *>(dimmer)->truncateUnusedLinks();
 }
 
 POWERLINE_DLL_ENTRY(int) getModemLinkRecords(Modem m)

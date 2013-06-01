@@ -106,7 +106,7 @@ void InsteonDevice::incomingMessage(const std::vector<unsigned char> &v, boost::
             if ((v[FLAG_BYTE] & 0xF0) == EXTMSG_BIT)
             {
                 if ((v[COMMAND1] == 0x2f) && (v[COMMAND2] == 0))
-                {
+                {   // link database record
                     unsigned which = v[COMMAND2+3];
                     which <<= 8;
                     which |= v[COMMAND2+4];
@@ -446,6 +446,7 @@ int InsteonDevice::createLink(InsteonDevice *responder, unsigned char group,
     addr = responder->linkAddr(m_addr, group, false, ls3);
     extMsg[OFFSET_D3] = static_cast<unsigned char>(addr >> 8);
     extMsg[OFFSET_D4] = static_cast<unsigned char>(addr);
+    extMsg[OFFSET_D5] = 8;
     memcpy(&extMsg[OFFSET_LINK_ADDR], m_addr, sizeof(m_addr));
     memcpy(&extMsg[OFFSET_TO_ADDR], responder->m_addr, sizeof(responder->m_addr));
     extMsg[OFFSET_LINK_FLAG] = 0xaa;  // flag as Responder
@@ -579,6 +580,7 @@ int InsteonDevice::removeLinks(const InsteonDeviceAddr &addr, unsigned char grou
                 extMsg[OFFSET_LINK_LS3] = link.m_LinkSpecific3;
                 extMsg[OFFSET_D3] = static_cast<unsigned char>(maddr >> 8);
                 extMsg[OFFSET_D4] = static_cast<unsigned char>(maddr);
+                extMsg[OFFSET_D5] = 8;
 
                 memcpy(&extMsg[OFFSET_TO_ADDR], m_addr, sizeof(m_addr));
                 memcpy(&extMsg[OFFSET_LINK_ADDR], link.m_addr, 3);
@@ -688,6 +690,46 @@ int InsteonDevice::getProductData()
         m_condition.timed_wait(l, boost::posix_time::time_duration(0, 0, secondsToWait));
     }
     return m_productData.size();
+}
+
+int InsteonDevice::truncateUnusedLinks()
+{
+    std::set<unsigned> UnusedLinks;
+    LinkTable_t::key_type leastAddr;
+    {
+        boost::mutex::scoped_lock l(m_mutex);
+        if (!m_LinkTableComplete) return -2;
+        if (m_LinkTable.empty()) return 0;
+        leastAddr = m_LinkTable.begin()->first;
+        UnusedLinks = m_UnusedLinks;
+    }
+    int ret = 0;
+    for (
+        std::set<unsigned>::iterator itor = UnusedLinks.begin();
+        itor != UnusedLinks.end();
+        itor ++)
+        {
+            unsigned linkToZero = *itor;
+            if (linkToZero >= leastAddr)
+                break;
+            unsigned char extMsg[EXTMSG_COMMAND_LEN];
+            InitExtMsg(extMsg);
+            memset(&extMsg[OFFSET_D1], 0, 14);
+            extMsg[OFFSET_D2] = 2;
+            memcpy(&extMsg[OFFSET_TO_ADDR], m_addr, sizeof(m_addr));
+            extMsg[OFFSET_D3] = static_cast<unsigned char>(linkToZero >> 8);
+            extMsg[OFFSET_D4] = static_cast<unsigned char>(linkToZero);
+            extMsg[OFFSET_D5] = 8;
+            PlaceCheckSum(extMsg);
+            boost::shared_ptr<InsteonCommand> p = m_plm->sendCommandAndWait(extMsg, sizeof(extMsg), 23); 
+            if (p->m_answerState < 0)
+            {
+                ret = p->m_answerState;
+                break;
+            }
+            ret += 1;
+        }
+    return ret;
 }
 
 std::ostream & operator << (std::ostream &os, const InsteonDeviceAddr &dev)

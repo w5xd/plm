@@ -71,6 +71,11 @@ sub getNumberOfLinks {
     return PowerLineModule::getNumberOfLinks( $self->{_dimmer} );
 }
 
+sub truncateUnusedLinks {
+    my $self = shift;
+    return PowerLineModule::truncateUnusedLinks( $self->{_dimmer} );
+}
+
 sub printLinkTable
 {    #nothing to print until after startGatherLinkTable/getNumberOfLinks
     my $self = shift;

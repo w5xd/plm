@@ -82,7 +82,7 @@ public:
     int removeLink(InsteonDevice *responder, unsigned char group, unsigned char ls3);
     // returns 0 on success, houseCode is from 'A' to 'P', and unit is from 1 to 16.
     int getX10Code(char &houseCode, unsigned char &unit, unsigned char btn=1) const;
-
+    int truncateUnusedLinks();
 
     const InsteonDeviceAddr &addr()const{return m_addr;}
     int getProductData();

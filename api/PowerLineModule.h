@@ -54,6 +54,8 @@ extern "C" {
     POWERLINE_DLL_ENTRY(int) linkPlm(Dimmer dimmer, int amController, unsigned char group, unsigned char ls1, unsigned char ls2, unsigned char ls3);
     /* Remove PLM as as reponder to this dimmer on its group */
     POWERLINE_DLL_ENTRY(int) unLinkPlm(Dimmer dimmer, int amController, unsigned char group, unsigned char ls3);
+    /* optimize programmable link table at remote--remove unused links off the end of the table*/
+    POWERLINE_DLL_ENTRY(int) truncateUnusedLinks(Dimmer dimmer);
     /* given a dimmer, set it */
     POWERLINE_DLL_ENTRY(int) setDimmerValue(Dimmer dimmer, unsigned char v);
     /* given a dimmer, use FAST command (ramp rate = instant. v>0 is ON, v <= 0 OFF*/
