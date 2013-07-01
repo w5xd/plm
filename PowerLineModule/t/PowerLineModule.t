@@ -8,7 +8,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 7;
+use Test::More tests => 9;
 use PowerLineModule::Modem;
 use PowerLineModule::Dimmer;
 use PowerLineModule::Keypad;
@@ -38,6 +38,8 @@ BEGIN {
 		my $Dimmer = $mdm->getDimmer($ENV{POWERLINEMODULE_DEVID});
 		ok($Dimmer != 0, "accessDimmer");
 		if ($Dimmer != 0) {
+			my $d2 = $mdm->getDimmer($ENV{POWERLINEMODULE_DEVID});
+			ok($d2 == $Dimmer, "two dimmers the same");
 			$Dimmer->setValue(100);
 			sleep(5);
 			my $v = $Dimmer->getValue(0);
@@ -52,18 +54,20 @@ BEGIN {
 			$Dimmer->startGatherLinkTable();
 			my $nLinks = $Dimmer->getNumberOfLinks();
 			my $lTable = $Dimmer->printLinkTable();
-			diag("Dimmer has ".$nLinks." links.\n".$lTable);
+			if (defined $lTable) {diag("Dimmer has ".$nLinks." links.\n".$lTable);}
 		}	
 		my $Keypad = $mdm->getKeypad($ENV{POWERLINEMODULE_DEVID});
+		my $kp2 = $mdm->getKeypad($ENV{POWERLINEMODULE_DEVID}); #repeat. should get same answer
+		ok ($Keypad == $kp2, "get same twice");
 		ok ($Keypad != 0, "accessKeypad");
 		if ($Keypad != 0) {
-			diag("Keypad dimmer ".$Keypad->{_dimmer}. " kp=".$Keypad->{_keypad}."\n");
 			$Keypad->setValue(0);
 			sleep(5);
 			$Keypad->setValue(1);
 			sleep(5);
 			$Keypad->setWallLEDbrightness(32);
 		}
+		$mdm->shutdown();
 	}
 	1;
 };

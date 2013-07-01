@@ -15,6 +15,11 @@ sub new {
     return $self;
 }
 
+sub destruct {
+   my $self = shift;
+   $self->{_dimmer} = 0;
+}
+
 sub setValue {
     my $self = shift;
     return PowerLineModule::setDimmerValue( $self->{_dimmer}, shift );

@@ -19,6 +19,8 @@ sub new {
         $self->{_level}, $self->{_logfileName} );
     $self->{_modem}   = $res[0];
     $self->{_wasOpen} = $res[1];
+    $self->{_dimmerHash} = {};
+    $self->{_keypadHash} = {};
     bless $self, $class;
     return $self;
 }
@@ -26,6 +28,18 @@ sub new {
 sub wasOpen {
     my $self = shift;
     return $self->{_wasOpen};
+}
+
+sub shutdown {
+    my $self = shift;
+    my $dimmerHash = $self->{_dimmerHash};
+    foreach my $dm (keys %$dimmerHash) { $dimmerHash->{$dm}->destruct();  } 
+    my $kpHash = $self->{_keypadHash};
+    foreach my $kp (keys %$kpHash) { $kpHash->{$kp}->destruct();    } 
+    $self->{_dimmerHash} = {};
+    $self->{_keypadHash} = {};
+    my $modem = delete $self->{_modem};
+    return PowerLineModule::shutdownModem( $modem );
 }
 
 sub logFileName {
@@ -47,7 +61,11 @@ sub getDimmer {
     my $self = shift;
     my $dimmer = PowerLineModule::getDimmerAccess( $self->{_modem}, shift );
     if ( $dimmer != 0 ) {
-        return PowerLineModule::Dimmer->new($dimmer);
+	my $ret = $self->{_dimmerHash}->{$dimmer};
+	if (defined($ret)) { return $ret; }
+        $ret = PowerLineModule::Dimmer->new($dimmer);
+	$self->{_dimmerHash}->{$dimmer} = $ret;
+	return $ret;
     }
     else { return 0; }
 }
@@ -56,7 +74,11 @@ sub getKeypad {
     my $self = shift;
     my $keypad = PowerLineModule::getKeypadAccess( $self->{_modem}, shift );
     if ( $keypad != 0 ) {
-        return PowerLineModule::Keypad->new($keypad);
+	my $ret = $self->{_keypadHash}->{$keypad};
+	if (defined($ret)) { return $ret; }
+        $ret = PowerLineModule::Keypad->new($keypad);
+	$self->{_keypadHash}->{$keypad} = $ret;
+	return $ret;
     }
     else { return 0; }
 }
