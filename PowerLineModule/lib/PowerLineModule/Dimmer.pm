@@ -25,6 +25,16 @@ sub setValue {
     return PowerLineModule::setDimmerValue( $self->{_dimmer}, shift );
 }
 
+sub setName {
+	my $self = shift;
+	$self->{_name} = shift;
+}
+
+sub getName {
+    my $self = shift;
+    return $self->{_name};
+}
+
 sub setFast {
     my $self = shift;
     return PowerLineModule::setDimmerFast( $self->{_dimmer}, shift );

@@ -82,6 +82,38 @@ openPowerLineModem(commPortName, level, logFileName)
 	    XPUSHs(sv_2mortal(newSViv((IV)RETVAL))); /* will be [0] */
 	    XPUSHs(sv_2mortal(newSViv(wasOpen)));   /* will be [1] */
 
+void
+monitor(modem, waitSecs) 
+	Modem modem
+	int waitSecs
+	INIT:
+           int ret = 0;
+	   Dimmer dimmer = 0;
+	   unsigned char group = 0;
+	   unsigned char cmd1 = 0;
+	   unsigned char cmd2 = 0 ;
+	   unsigned char ls1 = 0;
+	   unsigned char ls2 = 0;
+	   unsigned char ls3 = 0;
+	PPCODE:
+	   ret = monitorModem(modem, waitSecs, &dimmer, &group, &cmd1, &cmd2, &ls1, &ls2, &ls3);
+	   XPUSHs(sv_2mortal(newSViv(ret))); /* [0] */
+	   if (ret > 0)
+           {
+		XPUSHs(sv_2mortal(newSViv((IV)dimmer))); /* [1] */
+		XPUSHs(sv_2mortal(newSViv(group)));
+		XPUSHs(sv_2mortal(newSViv(cmd1)));
+		XPUSHs(sv_2mortal(newSViv(cmd2)));
+		XPUSHs(sv_2mortal(newSViv(ls1)));
+		XPUSHs(sv_2mortal(newSViv(ls2)));
+		XPUSHs(sv_2mortal(newSViv(ls3)));	/* [7] */
+           }
+
+void
+setMonitorState(modem, newState)
+	Modem modem
+	int newState
+
 int
 getModemLinkRecords(modem)
 	Modem modem

@@ -12,6 +12,7 @@ use Test::More tests => 9;
 use PowerLineModule::Modem;
 use PowerLineModule::Dimmer;
 use PowerLineModule::Keypad;
+use threads;
 
 BEGIN { use_ok('PowerLineModule') };
 
@@ -20,6 +21,33 @@ BEGIN { use_ok('PowerLineModule') };
 # Insert your test code below, the Test::More module is use()ed here so read
 # its man page ( perldoc Test::More ) for help writing this test script.
 BEGIN {
+
+	sub dimmer_notify { 
+		print STDERR "\ndimmer_notify:\n";
+		foreach (@_) {	print STDERR " arg: ".$_; }
+		print STDERR "\ndimmer_notify done\n";
+	}
+
+	sub kp_notify {
+		print STDERR "\nkp_notify:\n";
+		foreach (@_) {	print STDERR " arg: ".$_; }
+		print STDERR "\nkp_notify done\n";
+	}
+
+	sub monitor_thread {
+		my $mdm = shift;
+		$mdm->monitor(-1, #wait forever
+			\&dimmer_notify, #dimmer callback
+			\&kp_notify	#keypad callback
+		);
+	}
+        
+	my $sleep = 0;
+	if (defined($ENV{POWERLINEMODULE_SLEEP})) { 
+			$sleep = $ENV{POWERLINEMODULE_SLEEP}; }
+	if ($sleep > 0) {
+		diag("sleeping ".$sleep."\n");
+	       	sleep ($sleep); }
 	my $Msg = PowerLineModule::getErrorMessage(-1); 
 	ok($Msg eq "CreateFile failed", "getErrorMsg");
 	diag("Need two env variables, POWERLINEMODULE_COMPORT and POWERLINEMODULE_DEVID\n");
@@ -41,12 +69,12 @@ BEGIN {
 			my $d2 = $mdm->getDimmer($ENV{POWERLINEMODULE_DEVID});
 			ok($d2 == $Dimmer, "two dimmers the same");
 			$Dimmer->setValue(100);
-			sleep(5);
+			diag("sleeping 5"); sleep(5);
 			my $v = $Dimmer->getValue(0);
 			ok($v == 100, "getDimmerValue");
 			diag("Setting Dimmer to 0\n");
 			$Dimmer->setValue(0);
-			sleep(5);
+			diag("sleeping 5"); sleep(5);
 			my $egRes = $Dimmer->extendedGet();
 			ok($egRes eq 0, "PowerLineModule::Dimmer::extendedGet");
 			diag($Dimmer->printExtendedGet());
@@ -62,12 +90,21 @@ BEGIN {
 		ok ($Keypad != 0, "accessKeypad");
 		if ($Keypad != 0) {
 			$Keypad->setValue(0);
-			sleep(5);
+			diag("sleeping 5"); sleep(5);
 			$Keypad->setValue(1);
-			sleep(5);
+			diag("sleeping 5"); sleep(5);
 			$Keypad->setWallLEDbrightness(32);
 		}
+		# once the getAbcAccess() are all called, then can create the monitor thread
+		my $thr = threads->create('monitor_thread', $mdm); #COPIES $mdm hash
+		if ($sleep != 0) { 
+			if ($sleep < 0) { $sleep = -$sleep; }
+			diag("sleeping ".$sleep."\n"); sleep($sleep); }
+		$mdm->setMonitorState(0);
+		#the following order is important. This main thread must command the shutdown
+		#else the $thr thread will not exit and the join() will hang.
 		$mdm->shutdown();
+		$thr->join();
 	}
 	1;
 };

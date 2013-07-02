@@ -116,4 +116,45 @@ sub cancelLinking {
    return PowerLineModule::cancelLinking( $self->{_modem} );
 }
 
+#Two more args--dimmer callback function and keypad callback function
+#NOTE: when called by threads->create the Modem object is COPIED, as are
+#the Dimmer's and Keypad's that it references. So get___Access() functions
+#all have to be called before thread->create(). 
+sub monitor {
+    my $self = shift;
+    my $waitSecs = shift; #if < 0 waits forever and should be on own thread
+    my $dimcb = shift;
+    my $kpcb = shift;
+    while (1) {
+	    my @res = PowerLineModule::monitor($self->{_modem}, $waitSecs);
+	    if (($#res < 7) || !$res[0]) { return; }
+	    # res[0] is non-zero to contiue
+	    # res[1] is C pointer to InsteonDevice receiving notice
+	    # res[2] is insteon group #
+	    # res[3] is insteon cmd1
+	    # res[4] is insteon cmd2
+	    # res[5] is link ls1. Will be 0 unless getModemLinkRecords previously called
+	    # res[6] is link ls2
+	    # res[7] is link ls3
+	    my $kphash = $self->{_keypadHash};
+	    my $dmhash = $self->{_dimmerHash};
+	    my $kp = $kphash->{$res[1]};
+	    my $dm = $dmhash->{$res[1]};
+	    # invoke callbacks
+	    shift @res; # remove the first array entry (useless to callbacks)
+	    if (defined($kp) && defined($kpcb)) {   
+		    $res[0] = $kp; # replace C pointer with perl Keypad reference
+		    $kpcb->(@res); }
+            elsif (defined($dm) && defined ($dimcb)) {
+		    $res[0] = $dm; # replace C pointer with perl Dimmer reference
+		    $dimcb->(@res); }
+    }
+}
+
+sub setMonitorState {
+    my $self = shift;
+    my $newState = shift;
+    PowerLineModule::setMonitorState($self->{_modem}, $newState);
+}
+
 1;
