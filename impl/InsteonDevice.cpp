@@ -91,6 +91,12 @@ InsteonDevice::InsteonDevice(PlmMonitor *p, const unsigned char addr[3]) :
 bool InsteonDevice::operator < (const InsteonDevice &other) const
 {    return m_addr < other.m_addr;}
 
+static const char * const FlagLabels[] = {
+    "P2P", "P2P ACK", "P2P Cleanup", "P2P Cleanup ACK",
+    "Broadcast",   "P2P NAK", "Broadcast Group",
+    "P2P Cleanup NAK"
+};
+
 void InsteonDevice::incomingMessage(const std::vector<unsigned char> &v, boost::shared_ptr<InsteonCommand>)
 {
     {
@@ -103,6 +109,8 @@ void InsteonDevice::incomingMessage(const std::vector<unsigned char> &v, boost::
         static const unsigned char StartExtended[] = { 0x2, 0x51};
         if (memcmp(&v[START_BYTE], StartExtended, sizeof(StartExtended)) == 0)
         {
+            if (m_plm->m_verbosity >= PlmMonitor::MESSAGE_EVERY_IO)
+                dumpFlags(m_plm->cerr(), v);
             if ((v[FLAG_BYTE] & 0xF0) == EXTMSG_BIT)
             {
                 if ((v[COMMAND1] == 0x2f) && (v[COMMAND2] == 0))
@@ -168,6 +176,9 @@ void InsteonDevice::incomingMessage(const std::vector<unsigned char> &v, boost::
         static const unsigned char StartStandard[] = { 0x2, 0x50};
         if ((memcmp(&v[START_BYTE], StartStandard, sizeof(StartStandard)) == 0))
         {
+            if (m_plm->m_verbosity >= PlmMonitor::MESSAGE_EVERY_IO)
+                dumpFlags(m_plm->cerr(), v);
+
             if ((v[FLAG_BYTE] & 0xF0) == GROUP_BIT)
             { // acq this group clean-up message
                m_plm->queueCommand(ack, sizeof(ack), 4, false); 
@@ -178,8 +189,21 @@ void InsteonDevice::incomingMessage(const std::vector<unsigned char> &v, boost::
                 m_lastAcqCommand1 = v[COMMAND1];
                 m_condition.notify_all();
             }
+
         }
     }
+}
+
+void InsteonDevice::dumpFlags(std::ostream &os, const std::vector<unsigned char> &v)
+{
+    unsigned char flag = v[FLAG_BYTE];
+    int offset = 0x7 & (flag >> 5);
+    int rtLeft = 0x3 & (flag >> 2);
+    int rtAllowed = 0x3 & flag;
+
+    os << FlagLabels[offset] << ", left:" << rtLeft << " allw:" << rtAllowed <<
+        " cmd: 0x" << std::hex << std::setw(2) << std::setfill('0') << (int)v[COMMAND1] <<
+        ", 0x"     << std::hex << std::setw(2) << std::setfill('0') << (int)v[COMMAND2] << std::endl;
 }
 
 int InsteonDevice::numberOfLinks(int msecToWait) const
@@ -226,6 +250,7 @@ void InsteonDevice::reqAllLinkData(unsigned addr)
 {
     unsigned char reqAllLinkDatab[EXTMSG_COMMAND_LEN] =
     { 0x02, 0x62, 0x11, 0x11, 0x11, 0x1F, 0x2F, 0x00, };
+    memset(&reqAllLinkDatab[7], 0, sizeof(reqAllLinkDatab) - 7);
     memcpy(&reqAllLinkDatab[2], m_addr, 3);
     if (addr != 0)
     {
@@ -252,11 +277,9 @@ int InsteonDevice::startGatherLinkTable()
 
 int InsteonDevice::linkPlm(bool amController, unsigned char grp, unsigned char ls1, unsigned char ls2, unsigned char ls3)
 {
-     int res = m_plm->createLink(this, !amController, grp, 0x80, ls1, ls2, ls3);
-     if (res < 0)
-            return -1;    
-
-    return createLinkWithModem(grp, amController, ls1, ls2, ls3);
+    int res = m_plm->createLink(this, !amController, grp, 0x80, ls1, ls2, ls3);
+    int res2 = createLinkWithModem(grp, amController, ls1, ls2, ls3);
+    return std::min(res, res2);
 }
 
 int InsteonDevice::unLinkPlm(bool amController, unsigned char grp, unsigned char ls3)
@@ -265,7 +288,6 @@ int InsteonDevice::unLinkPlm(bool amController, unsigned char grp, unsigned char
      int res2 =  removeLinks(m_plm->insteonID(), grp,  amController, ls3);
      return std::min(res, res2);
 }
-
 
 int InsteonDevice::createLinkWithModem(unsigned char group, bool amController, InsteonDevice *other, unsigned char og)
 {

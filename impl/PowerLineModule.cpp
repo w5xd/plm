@@ -50,6 +50,22 @@ POWERLINE_DLL_ENTRY(int) clearModemLinkData(Modem  modem)
     return reinterpret_cast<w5xdInsteon::PlmMonitor *>(modem)->clearModemLinkData();
 }
 
+POWERLINE_DLL_ENTRY(int) monitorModem(Modem modem, int waitSeconds, Dimmer *dimmer, 
+        unsigned char *group, unsigned char *cmd1, unsigned char *cmd2,
+        unsigned char *ls1, unsigned char *ls2, unsigned char *ls3)
+{
+    if (!modem) return 0;
+    return reinterpret_cast<w5xdInsteon::PlmMonitor *>(modem)->monitor(
+        waitSeconds, *reinterpret_cast<w5xdInsteon::InsteonDevice ** >(dimmer), 
+        *group, *cmd1, *cmd2, *ls1, *ls2, *ls3
+        );
+}
+
+POWERLINE_DLL_ENTRY(void) setMonitorState(Modem modem, int state)
+{
+    if (!modem) return;
+    reinterpret_cast<w5xdInsteon::PlmMonitor *>(modem)->queueNotifications(state != 0);
+}
 
 POWERLINE_DLL_ENTRY(int) shutdownModem(Modem m)
 {

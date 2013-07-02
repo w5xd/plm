@@ -42,13 +42,14 @@ void PlmMonitor::timeStamp(std::ostream &st)
 PlmMonitor::PlmMonitor(const char *commPortName, const char *logFileName) : 
     m_which(gNextId++), 
     m_shutdown(false),
-    m_readThreadRunning(false), 
+    m_ThreadRunning(0), 
     m_io(new PlmMonitorIO(commPortName)),
     m_verbosity(static_cast<int>(MESSAGE_QUIET)),
     m_startupTime(boost::posix_time::microsec_clock::universal_time()),
     m_multipleLinkingRequested(0),
     m_haveAllModemLinks(false), 
-    m_nextCommandId(0)
+    m_nextCommandId(0),
+    m_queueNotifications(false)
 {
     if (logFileName && *logFileName)
         m_errorFile.open(logFileName, std::ofstream::out | std::ofstream::app);
@@ -65,7 +66,7 @@ const std::string &PlmMonitor::commPortName() const {return m_io->commPortName()
 void PlmMonitor::syncWithThreadState(bool v)
 {
     boost::mutex::scoped_lock l(m_mutex);
-    while (m_readThreadRunning != v)
+    while (v ^ (m_ThreadRunning != 0))
         m_condition.wait(l);
 }
 
@@ -73,7 +74,7 @@ void PlmMonitor::signalThreadStartStop(bool v)
 {
     {
         boost::mutex::scoped_lock l(m_mutex);
-        m_readThreadRunning = v;
+        m_ThreadRunning += v ? 1 : -1;
     }
     m_condition.notify_all();
 }
@@ -81,6 +82,7 @@ void PlmMonitor::signalThreadStartStop(bool v)
 int PlmMonitor::shutdownModem()
 {
     m_shutdown = true;
+    m_condition.notify_all();
     return 0;
 }
 
@@ -97,7 +99,7 @@ void PlmMonitor::reportErrorState(const unsigned char *command, int clen,
             cerr() << " answer ";
             if (!p->m_answer->empty())
                 bufferToStream(cerr(), &(*p->m_answer)[0], p->m_answer->size());
-            cerr() << "answer_state: " << std::dec << p->m_answerState << std::endl;
+            cerr() << " answer_state: " << std::dec << p->m_answerState << std::endl;
         }
     }
 }
@@ -128,6 +130,26 @@ PlmMonitor::sendCommandAndWait(const unsigned char *v, unsigned s, unsigned resL
     }
     reportErrorState(v, s, p);
     return p;
+}
+
+void
+PlmMonitor::forceGetImInfo()
+{
+    static const unsigned char buf[] =  {0x02, 0x60};
+    {
+        boost::mutex::scoped_lock l(m_mutex);
+        if (
+            m_writeQueue.empty() ||
+            m_writeQueue.front()->m_command.size() != sizeof(buf) ||
+            memcmp(buf, &m_writeQueue.front()->m_command[0], sizeof(buf)) != 0)
+        {   // only push this if the first command is not already GetImInfo
+            boost::shared_ptr<InsteonCommand> p;
+            p.reset(new InsteonCommand(9));
+            p->m_command.assign(buf, buf + sizeof(buf));
+            p->m_globalId = ++m_nextCommandId;
+            m_writeQueue.push_front(p);
+        }
+    }
 }
 
 int PlmMonitor::MessageGetImInfo()
@@ -264,6 +286,15 @@ void PlmMonitor::ioThread()
                     xt.sec += 2;
                     boost::thread::sleep(xt);
                 }
+                else
+                {
+                    if (p)
+                    {
+                        m_writeQueue.push_front(p);
+                        p.reset();
+                    }
+                    forceGetImInfo();
+                }
             }
             if (nr != 0)    // if we got anything, ensure we go around again
                  currentCommandReadLoopCount = 1;
@@ -277,8 +308,13 @@ void PlmMonitor::ioThread()
                     timeStamp(cerr());
                     cerr() << "PlmMonitor::ioThread read" << std::endl;
                     bufferToStream(cerr(), rbuf, nr);
-                    cerr() << std::endl << " with current message:" << std::endl;
-                    bufferToStream(cerr(), &curMessage[0], curMessage.size());
+                    if (!curMessage.empty())
+                    {
+                        cerr() << std::endl << " with current message:" << std::endl;
+                        bufferToStream(cerr(), &curMessage[0], curMessage.size());
+                    }
+                    else
+                        cerr() << std::endl << " with no current message";
                     cerr() << std::endl;
                 }
             }
@@ -355,10 +391,13 @@ void PlmMonitor::ioThread()
                     {
                         if (m_verbosity >= static_cast<int>(MESSAGE_ON))
                            cerr() << "Retrying after reopening TTY" << std::endl;
-                        boost::mutex::scoped_lock l(m_mutex);
-                        //put it back in queue at the front
-                        m_writeQueue.push_front(p);
-                        delayDequeue = 5; // don't dequeue this command for a bit
+                        {
+                            boost::mutex::scoped_lock l(m_mutex);
+                            //put it back in queue at the front
+                            m_writeQueue.push_front(p);
+                            delayDequeue = 5; // don't dequeue this command for a bit
+                        }
+                        forceGetImInfo();
                     }
                     p.reset();
                }
@@ -411,12 +450,15 @@ void PlmMonitor::ioThread()
                     if (p->m_whenDone)  p->m_whenDone(p.get());
                     p.reset();
                 }
-                else if (m_verbosity >= static_cast<int>(MESSAGE_ON))
+                else
                 {
-                    timeStamp(cerr());
-                    cerr() << "PlmMonitor::ioThread retrying command " << std::endl;
-                    bufferToStream(cerr(), &p->m_command[0], p->m_command.size());
-                    cerr() << std::endl;
+                    if (m_verbosity >= static_cast<int>(MESSAGE_ON))
+                    {
+                        timeStamp(cerr());
+                        cerr() << "PlmMonitor::ioThread retrying command " << std::endl;
+                        bufferToStream(cerr(), &p->m_command[0], p->m_command.size());
+                        cerr() << std::endl;
+                    }
                     boost::mutex::scoped_lock l(m_mutex);
                     //put it back in queue at the front
                     m_writeQueue.push_front(p);
@@ -436,6 +478,7 @@ void PlmMonitor::ioThread()
                 timeOfLastIncomingMessage = boost::posix_time::microsec_clock::universal_time();
                 if (p)
                 {   // delay it.
+                    boost::mutex::scoped_lock l(m_mutex);
                     m_writeQueue.push_front(p);
                     p.reset();
                     if (m_verbosity >= static_cast<int>(MESSAGE_ON))
@@ -508,6 +551,11 @@ void PlmMonitor::ioThread()
         m_condition.notify_all();
     }
     signalThreadStartStop(false);
+    if (m_verbosity >= static_cast<int>(MESSAGE_ON))
+    {
+        timeStamp(cerr());
+        cerr() << "PlmMonitor::ioThread exit" << std::endl;
+    }
 }
 
 void PlmMonitor::deliverfromRemoteMessage(boost::shared_ptr<std::vector<unsigned char> > v,
@@ -530,7 +578,54 @@ void PlmMonitor::deliverfromRemoteMessage(boost::shared_ptr<std::vector<unsigned
                     p = itor->m_p;
             }
             if (p)
+            {
                 p->incomingMessage(raw, lastAcqued);
+                unsigned char flag = raw[8] & 0xf0;
+                if (raw[1] == 0x50) 
+                {
+                    unsigned char group = raw[7];
+                    unsigned char cmd1 = raw[9];
+                    unsigned char cmd2 = raw[10];
+                    bool doNotify = (flag == 0xc0) && (raw[5] == 0) && (raw[6] == 0);
+                    if (flag == 0x40)
+                    {   // P2P Cleanup
+                        if (memcmp(&m_IMInsteonId[0], &raw[5], sizeof(m_IMInsteonId)) == 0)
+                        {
+                            // addressed to me
+                            doNotify = true;
+                            group = cmd2;
+                        }
+                    }
+                    if (doNotify)
+                    {
+                        boost::mutex::scoped_lock l(m_mutex);
+                        if (m_queueNotifications)
+                        {
+                            m_notifications.push_back(NotificationEntry());
+                            NotificationEntry &ne = m_notifications.back();
+                            ne.m_device = p;
+                            ne.group = group;
+                            ne.cmd1 = cmd1;
+                            ne.cmd2 = cmd2;
+                            for (LinkTable_t::iterator itor = m_ModemLinks.begin();
+                                itor != m_ModemLinks.end();
+                                itor ++)
+                            {
+                                if ((itor->m_addr == p->addr()) &&
+                                    (itor->m_group == ne.group) &&
+                                    (itor->isResponder()))
+                                {
+                                    ne.ls1 = itor->m_LinkSpecific1;
+                                    ne.ls2 = itor->m_LinkSpecific2;
+                                    ne.ls3 = itor->m_LinkSpecific3;
+                                    break;
+                                }
+                            }
+                            m_condition.notify_all();
+                        }
+                    }
+                }
+            }
         }
         break;
     case 0x57:
@@ -651,7 +746,10 @@ T *PlmMonitor::getDeviceAccess(const unsigned char addr[3])
         if (current)
             return current;
         else 
+        {
+            m_retiredDevices.push_back(*itor); // can't just delete--C clients might still use
             m_insteonDeviceSet.erase(itor);
+        }
     }
     boost::shared_ptr<InsteonDevice> v(new T(this, addr));
     m_insteonDeviceSet.insert(InsteonDevicePtr(v));
@@ -929,6 +1027,55 @@ const char * PlmMonitor::printModemLinkTable()
     m_linkTablePrinted = linkTablePrinted.str(); 
     return m_linkTablePrinted.c_str();
 }
+
+int PlmMonitor::monitor(int waitSeconds, InsteonDevice *&dimmer, 
+            unsigned char &group, unsigned char &cmd1, unsigned char &cmd2,
+            unsigned char &ls1, unsigned char &ls2, unsigned char &ls3)
+{
+    boost::mutex::scoped_lock l(m_mutex);
+    if (waitSeconds < 0)
+        m_queueNotifications = true;
+    m_ThreadRunning += 1;
+    while (!m_shutdown && m_queueNotifications && m_notifications.empty())
+    {
+        if (waitSeconds < 0)
+            m_condition.wait(l);
+        else if (waitSeconds > 0)
+        {
+            m_condition.timed_wait(l, boost::posix_time::time_duration(0, 0, waitSeconds));
+            break;
+        }
+        else
+            break;
+    }
+    m_ThreadRunning -= 1;
+    if (m_notifications.empty())
+        return 0;
+    NotificationEntry &ne = m_notifications.front();
+    dimmer = ne.m_device.get();
+    group = ne.group;
+    cmd1 = ne.cmd1;
+    cmd2 = ne.cmd2;
+    ls1 = ne.ls1;
+    ls2 = ne.ls2;
+    ls3 = ne.ls3;
+    m_notifications.pop_front();
+    return 1;
+}
+
+void PlmMonitor::queueNotifications(bool v)
+{
+    {
+        boost::mutex::scoped_lock l(m_mutex);
+        m_queueNotifications = v;
+        if (!v)
+        {
+            m_notifications.clear();
+        }
+    }
+    m_condition.notify_all();
+}
+
 
 // force a couple of template instantiations. These are currently used above, but show how to make more, if needed
 template Dimmer *PlmMonitor::getDeviceAccess<Dimmer>(const char *);

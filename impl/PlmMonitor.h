@@ -81,6 +81,12 @@ namespace w5xdInsteon {
 
         int deleteGroupLinks(unsigned char group);
 
+        int monitor(int waitSeconds, InsteonDevice *&dimmer, 
+            unsigned char &group, unsigned char &cmd1, unsigned char &cmd2,
+            unsigned char &ls1, unsigned char &ls2, unsigned char &ls3);
+
+        void queueNotifications(bool v);
+
         enum {MESSAGE_QUIET, MESSAGE_ON, MESSAGE_MOST_IO, MESSAGE_EVERY_IO};
         int m_verbosity;
         int setErrorLevel(int v) { int ret = m_verbosity; m_verbosity = v; return ret;}
@@ -89,13 +95,23 @@ namespace w5xdInsteon {
         std::ostream &cerr(){return m_errorFile.is_open() ? m_errorFile : std::cerr;}
    protected:
         typedef std::set<InsteonDevicePtr> InsteonDeviceSet_t;
+        struct NotificationEntry {
+            boost::shared_ptr<InsteonDevice> m_device;
+            unsigned char group;
+            unsigned char cmd1;
+            unsigned char cmd2;
+            unsigned char ls1;
+            unsigned char ls2;
+            unsigned char ls3;
+            NotificationEntry() : group(0), cmd1(0), cmd2(0), ls1(0), ls2(0), ls3(0){}
+        };
         mutable boost::mutex    m_mutex;
         std::ofstream   m_errorFile;
         boost::scoped_ptr<PlmMonitorIO> m_io;
         std::deque<boost::shared_ptr<InsteonCommand> > m_writeQueue;
         boost::condition_variable   m_condition;
         bool m_shutdown;
-        bool m_readThreadRunning;
+        int m_ThreadRunning;
         unsigned char   m_multipleLinkingRequested;
         unsigned char    m_IMInsteonId[3];
         unsigned char    m_IMDeviceCat;
@@ -105,10 +121,13 @@ namespace w5xdInsteon {
         int m_nextCommandId;
         boost::posix_time::ptime    m_startupTime;
         InsteonDeviceSet_t  m_insteonDeviceSet;
+        std::deque<InsteonDevicePtr>  m_retiredDevices;
         bool m_haveAllModemLinks;
         typedef std::vector<InsteonLinkEntry> LinkTable_t;
         LinkTable_t  m_ModemLinks;
         std::string m_linkTablePrinted;
+        std::deque<NotificationEntry> m_notifications;
+        bool m_queueNotifications;
 
         void startLinking(unsigned char);
         void ioThread();
@@ -120,7 +139,7 @@ namespace w5xdInsteon {
         void reportErrorState(const unsigned char *, int, boost::shared_ptr<InsteonCommand>);
         void getNextLinkRecordCompleted(InsteonCommand *);
         int getDeviceLinkGroup(InsteonDevice *d)const;
-
+        void forceGetImInfo();
     };
 }
 #endif

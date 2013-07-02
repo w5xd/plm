@@ -42,6 +42,7 @@ public:
         m_LinkSpecific2 = v[6];
         m_LinkSpecific3 = v[7];
     }
+    bool isResponder() const { return (m_flag & CONTROLLER_FLAG) == 0; }
     unsigned char m_flag;
     unsigned char m_group;
     InsteonDeviceAddr m_addr;
@@ -96,6 +97,7 @@ protected:
     void reqAllLinkData(unsigned addr); // addr == 0 means all records. Otherwise just the record at that addr
     // same range of legal values as getX10Code
     int setX10Code(char houseCode, unsigned char unit, unsigned char btn=1);
+    static void dumpFlags(std::ostream &, const std::vector<unsigned char> &);
 
     mutable boost::mutex    m_mutex;
     mutable boost::condition_variable   m_condition;

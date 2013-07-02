@@ -38,6 +38,12 @@ extern "C" {
     POWERLINE_DLL_ENTRY(int) cancelLinking(Modem  modem);
     /* CLEAR modem link data. CAREFUL! */
     POWERLINE_DLL_ENTRY(int) clearModemLinkData(Modem  modem);
+    /*  monitorModem returns on received Insteon command, or on shutdownModem. Use waitSeconds < 0 on separate thread*/
+    POWERLINE_DLL_ENTRY(int) monitorModem(Modem modem, int waitSeconds, Dimmer *dimmer, 
+        unsigned char *group, unsigned char *cmd1, unsigned char *cmd2,
+        unsigned char *ls1, unsigned char *ls2, unsigned char *ls3);
+    /* explicit start/stop of modem monitor queue. monitorModem noWait==0 implicitly starts queueu*/
+    POWERLINE_DLL_ENTRY(void) setMonitorState(Modem modem, int state);
     /* after shutdownModem, the modem won't work until another open */
     POWERLINE_DLL_ENTRY(int) shutdownModem(Modem  modem);
     /* set to zero or less writes no messages. and 2 writes more than 1*/
