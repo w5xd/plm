@@ -87,7 +87,26 @@ public:
 
     const InsteonDeviceAddr &addr()const{return m_addr;}
     int getProductData();
+
+    int enterLinkMode(unsigned char group);
 protected:
+    enum {OFFSET_TO_ADDR = 2, 
+            OFFSET_FLAG = 5,
+            OFFSET_CMD1 = 6,
+            OFFSET_CMD2 = 7,
+            OFFSET_D1 = 8,
+            OFFSET_D2 = 9,
+            OFFSET_D3 = 10,
+            OFFSET_D4 = 11,
+            OFFSET_D5 = 12,
+            OFFSET_LINK_FLAG = 13,
+            OFFSET_D6 = 13,
+            OFFSET_LINK_GROUP = 14,
+            OFFSET_LINK_ADDR = 15,
+            OFFSET_LINK_LS1 = 18,
+            OFFSET_LINK_LS2 = 19,
+            OFFSET_LINK_LS3 = 20,
+            EXTMSG_COMMAND_LEN = 22};
     int createLinkWithModem(unsigned char group, bool amController, InsteonDevice *other, unsigned char og);
     int createLinkWithModem(unsigned char group, bool amController, 
                                        unsigned char ls1, unsigned char ls2, unsigned char ls3);
@@ -98,7 +117,8 @@ protected:
     // same range of legal values as getX10Code
     int setX10Code(char houseCode, unsigned char unit, unsigned char btn=1);
     static void dumpFlags(std::ostream &, const std::vector<unsigned char> &);
-
+    static void InsteonDevice::InitExtMsg(unsigned char *extMsg);
+    static void PlaceCheckSum(unsigned char *extMsg);
     mutable boost::mutex    m_mutex;
     mutable boost::condition_variable   m_condition;
     PlmMonitor  *m_plm; // non ref-counted
@@ -106,8 +126,8 @@ protected:
     typedef std::map<unsigned, InsteonLinkEntry> LinkTable_t;
     LinkTable_t m_LinkTable;
     std::set<unsigned> m_UnusedLinks;
-    bool m_requestedOneLink;
     unsigned m_finalAddr;
+    unsigned m_lastRequestedAddr;
     unsigned m_lastAcqCommand1;
     std::string m_linkTablePrinted;
     std::map<unsigned char, std::string> m_extendedGetPrint;
@@ -123,17 +143,6 @@ private:
     bool m_LinkTableComplete;
 };
 
-// class for holding pointers to InsteonDevices sorted by their Device address.
-class InsteonDevicePtr
-{
-public:
-    InsteonDevicePtr(InsteonDevice *p) : m_p(p){} // takes ownership of p
-    InsteonDevicePtr(boost::shared_ptr<InsteonDevice> p) : m_p(p){}
-    InsteonDevicePtr(const unsigned char addr[3]): m_p(new InsteonDevice(0, addr)){}
-    bool operator < (const InsteonDevicePtr &other) const {return *m_p < *other.m_p;}
-public:
-    boost::shared_ptr<InsteonDevice>    m_p;
-};
 }
 #endif
 

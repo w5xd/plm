@@ -6,6 +6,8 @@
 #include <boost/bind.hpp>
 #include "PlmMonitor.h"
 #include "Dimmer.h"
+#include "Fanlinc.h"
+#include "Keypad.h"
 
 #if defined (WIN32)
 #include "PlmMonitorWin.h"
@@ -189,9 +191,10 @@ int PlmMonitor::init()
     syncWithThreadState(true);
    	MessageGetImInfo();
     {  // Set Modem mode Monitor
-        static const unsigned char tempWrite[] = 
-        {0x02, 0x6b, 0x40, };   
-        queueCommand(tempWrite, sizeof(tempWrite), 4, false);
+        static const unsigned char tempWrite[] = {0x02, 0x6b, 0x48};   
+        static const unsigned char getImConfig[]  = {0x02, 0x73};
+        sendCommandAndWait(tempWrite, sizeof(tempWrite), 4, false);
+        sendCommandAndWait(getImConfig, sizeof(getImConfig), 6, false);
     }
     return status;
 }
@@ -417,7 +420,12 @@ void PlmMonitor::ioThread()
                   (curMessage.size() > 1) &&
                      (p->m_command[1] == curMessage[1]))
             {   // successful command completion
-                if (m_verbosity >= static_cast<int>(MESSAGE_EVERY_IO))
+                bool print = m_verbosity >= static_cast<int>(MESSAGE_EVERY_IO);
+                if ((p->m_command.size() > 1) &&
+                    (p->m_command[1] == 0x73) &&
+                    (m_verbosity >= static_cast<int>(MESSAGE_ON)))
+                    print = true;
+                if (print)
                 {
                     timeStamp(cerr());
                     cerr() << "PlmMonitor::ioThread successful completion for" << std::endl;
@@ -1118,10 +1126,17 @@ bool PlmMonitor::NotificationEntry::operator == (const NotificationEntry &other)
     return true;
 }
 
+
+InsteonDevicePtr::InsteonDevicePtr(const unsigned char addr[3]): m_p(new InsteonDevice(0, addr)){}
+bool InsteonDevicePtr::operator < (const InsteonDevicePtr &other) const {return *m_p < *other.m_p;}
+
+
 // force a couple of template instantiations. These are currently used above, but show how to make more, if needed
 template Dimmer *PlmMonitor::getDeviceAccess<Dimmer>(const char *);
 template Keypad *PlmMonitor::getDeviceAccess<Keypad>(const char *);
+template Fanlinc *PlmMonitor::getDeviceAccess<Fanlinc>(const char *);
 template InsteonDevice *PlmMonitor::getDeviceAccess<InsteonDevice>(const char *);
+
 
 }
 

@@ -19,6 +19,8 @@ extern "C" {
     typedef struct Modem_t *Modem;
     typedef struct Dimm_t *Dimmer;
     typedef struct Keypad_t *Keypad;
+    typedef struct Fanlinc_t *Fanlinc;
+
     /* commPortName 
     ** on Windows, must be COMn where n is a number
     ** on Linux, must be /dev/tty___ where ___ is the full device name
@@ -56,6 +58,8 @@ extern "C" {
     POWERLINE_DLL_ENTRY(int) getDimmerValue(Dimmer dimmer, int fromCache);
     /* given a dimmer, ask it to start sending over its linking table. */
     POWERLINE_DLL_ENTRY(int) startGatherLinkTable(Dimmer dimmer);
+    /* Tell dimmer to press set button. */
+    POWERLINE_DLL_ENTRY(int) enterLinkMode(Dimmer dimmer, unsigned char group);
     /* Have the PLM respond to the dimmer on its given group. */
     POWERLINE_DLL_ENTRY(int) linkPlm(Dimmer dimmer, int amController, unsigned char group, unsigned char ls1, unsigned char ls2, unsigned char ls3);
     /* Remove PLM as as reponder to this dimmer on its group */
@@ -117,6 +121,11 @@ extern "C" {
     POWERLINE_DLL_ENTRY(int) setNonToggleState(Keypad keypad, unsigned char button, unsigned char nonToggle);
     POWERLINE_DLL_ENTRY(int) getBtnX10Code(Keypad keypad, char *houseCode, unsigned char *unit, unsigned char btn);
     POWERLINE_DLL_ENTRY(int) setBtnX10Code(Keypad keypad, char houseCode, unsigned char unit, unsigned char btn);
+
+    /* Fanlinc support */
+    /* get dimmer access by dimmer hardware address */
+    POWERLINE_DLL_ENTRY(Fanlinc) getFanlincAccess(Modem modem, const char *addr);
+    POWERLINE_DLL_ENTRY(int) setFanSpeed(Fanlinc fanlinc, unsigned char speed);
 
 #ifdef __cplusplus
 }

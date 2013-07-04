@@ -3,6 +3,10 @@
 #include "../api/PowerLineModule.h"
 #include "../impl/PlmMonitorMap.h"
 #include "../impl/PlmMonitor.h"
+#include "../impl/Dimmer.h"
+#include "../impl/Keypad.h"
+#include "../impl/Fanlinc.h"
+
 /***********************************************************************
 **C callable entry points
 */
@@ -93,10 +97,24 @@ POWERLINE_DLL_ENTRY(Keypad) getKeypadAccess(Modem modem, const char *addr)
         reinterpret_cast<w5xdInsteon::PlmMonitor *>(modem)->getKeypadAccess(addr));
 }
 
+POWERLINE_DLL_ENTRY(Fanlinc) getFanlincAccess(Modem modem, const char *addr)
+{
+    if (!modem) return 0;
+    return reinterpret_cast<Fanlinc>(
+        reinterpret_cast<w5xdInsteon::PlmMonitor *>(modem)->getFanlincAccess(addr));
+}
+
 POWERLINE_DLL_ENTRY(int) getDimmerValue(Dimmer dimmer, int fromCache)
 {
     if (!dimmer) return 0;
     return reinterpret_cast<w5xdInsteon::Dimmer *>(dimmer)->getDimmerValue(fromCache ? true : false);
+}
+
+
+POWERLINE_DLL_ENTRY(int) enterLinkMode(Dimmer dimmer, unsigned char group)
+{
+    if (!dimmer) return 0;
+    return reinterpret_cast<w5xdInsteon::Dimmer *>(dimmer)->enterLinkMode(group);
 }
 
 POWERLINE_DLL_ENTRY(int) linkPlm(Dimmer dimmer, int amController, unsigned char group, unsigned char ls1, unsigned char ls2, unsigned char ls3)
@@ -254,6 +272,13 @@ POWERLINE_DLL_ENTRY(int) setBtnX10Code(Keypad keypad, char houseCode, unsigned c
 {
     if (!keypad) return 0;
     return reinterpret_cast<w5xdInsteon::Keypad *>(keypad)->setX10Code(houseCode, unit, btn);
+}
+
+POWERLINE_DLL_ENTRY(int) setFanSpeed(Fanlinc fanlinc, unsigned char speed)
+{
+    if (!fanlinc)
+        return 0;
+    return reinterpret_cast<w5xdInsteon::Fanlinc *>(fanlinc)->setFanSpeed(speed);
 }
 
 

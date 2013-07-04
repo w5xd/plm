@@ -10,24 +10,6 @@ namespace w5xdInsteon {
 
 const unsigned char InUseFlag = 0x80;
 
-enum {OFFSET_TO_ADDR = 2, 
-        OFFSET_FLAG = 5,
-        OFFSET_CMD1 = 6,
-        OFFSET_CMD2 = 7,
-        OFFSET_D1 = 8,
-        OFFSET_D2 = 9,
-        OFFSET_D3 = 10,
-        OFFSET_D4 = 11,
-        OFFSET_D5 = 12,
-        OFFSET_LINK_FLAG = 13,
-        OFFSET_D6 = 13,
-        OFFSET_LINK_GROUP = 14,
-        OFFSET_LINK_ADDR = 15,
-        OFFSET_LINK_LS1 = 18,
-        OFFSET_LINK_LS2 = 19,
-        OFFSET_LINK_LS3 = 20,
-        EXTMSG_COMMAND_LEN = 22};
-
 enum {EXT_MSG_LENGTH = 23,
     EXT_D1=9,
     EXT_D2=10,
@@ -37,7 +19,7 @@ enum {EXT_MSG_LENGTH = 23,
     EXT_D6=14,
     };
 
-void PlaceCheckSum(unsigned char *extMsg)
+void InsteonDevice::PlaceCheckSum(unsigned char *extMsg)
 {
     // This sum is undocumented, but required for, apparently,
     // "all extended commands"
@@ -80,10 +62,10 @@ void InsteonLinkEntry::print(std::ostream &oss)const
 InsteonDevice::InsteonDevice(PlmMonitor *p, const unsigned char addr[3]) :
     m_plm(p)
    ,m_LinkTableComplete(false)
-   ,m_requestedOneLink(false)
    ,m_finalAddr(0)
    ,m_lastAcqCommand1(0)
    ,m_incomingMessageCount(0)
+   ,m_lastRequestedAddr(0)
 {
     m_addr = addr;
 }
@@ -96,6 +78,20 @@ static const char * const FlagLabels[] = {
     "Broadcast",   "P2P NAK", "Broadcast Group",
     "P2P Cleanup NAK"
 };
+
+int InsteonDevice::enterLinkMode(unsigned char group)
+{
+    unsigned char extMsg[EXTMSG_COMMAND_LEN];
+    InitExtMsg(extMsg);
+    memset(&extMsg[OFFSET_D1], 0, 14);
+    memcpy(&extMsg[OFFSET_TO_ADDR], m_addr, sizeof(m_addr));
+    extMsg[OFFSET_CMD1] = 0x09; 
+    extMsg[OFFSET_CMD2] = group;  
+    PlaceCheckSum(extMsg);
+    m_plm->sendCommandAndWait(extMsg, sizeof(extMsg), 23); 
+    return 1;
+}
+
 
 void InsteonDevice::incomingMessage(const std::vector<unsigned char> &v, boost::shared_ptr<InsteonCommand>)
 {
@@ -123,33 +119,33 @@ void InsteonDevice::incomingMessage(const std::vector<unsigned char> &v, boost::
                     if (!m_LinkTableComplete)
                     {
 #ifdef _DEBUGXXX   // force retry of a particular record to test the retry code
-                            if ((which == 0xfe7) && !m_requestedOneLink)
-                                ;
-                            else
+                        if ((which == 0xfe7) && (m_lastRequestedAddr == 0))
+                            ;
+                        else
 #endif
-                            if (flag & InUseFlag) 
-                                m_LinkTable[which] = InsteonLinkEntry(&v[COMMAND2+6]);
-                            else if (flag != 0)
-                                m_UnusedLinks.insert(which);
-                            else
-                                m_finalAddr = which;
-                    }
-                    // see if we got them all
-                    if ((flag == 0) || m_requestedOneLink)
-                    {
-                        for (unsigned maddr = 0xfff; maddr != m_finalAddr; maddr -= 8)
+                        if (flag & InUseFlag) 
+                            m_LinkTable[which] = InsteonLinkEntry(&v[COMMAND2+6]);
+                        else if (flag != 0)
+                            m_UnusedLinks.insert(which);
+                        else
+                            m_finalAddr = which;
+                        // see if we got them all
+                        if ((flag == 0) || (m_lastRequestedAddr != 0))
                         {
-                            if (m_LinkTable.find(maddr) == m_LinkTable.end() &&
-                                m_UnusedLinks.find(maddr) == m_UnusedLinks.end())
+                            for (unsigned maddr = 0xfff; maddr != m_finalAddr; maddr -= 8)
                             {
-                                // oops.. didn't get them all
-                                m_requestedOneLink = true;
-                                reqAllLinkData(maddr);
-                                return;
+                                if (m_LinkTable.find(maddr) == m_LinkTable.end() &&
+                                    m_UnusedLinks.find(maddr) == m_UnusedLinks.end())
+                                {
+                                    // oops.. didn't get them all
+                                    if (maddr != m_lastRequestedAddr)
+                                        reqAllLinkData(maddr);
+                                    return;
+                                }
                             }
+                            m_LinkTableComplete = true;
+                            m_condition.notify_all();
                         }
-                        m_LinkTableComplete = true;
-                        m_condition.notify_all();
                     }
                 }
                 else if ((v[COMMAND1] == 0x2e) && (v[COMMAND2] == 0))
@@ -189,7 +185,6 @@ void InsteonDevice::incomingMessage(const std::vector<unsigned char> &v, boost::
                 m_lastAcqCommand1 = v[COMMAND1];
                 m_condition.notify_all();
             }
-
         }
     }
 }
@@ -258,6 +253,7 @@ void InsteonDevice::reqAllLinkData(unsigned addr)
         reqAllLinkDatab[OFFSET_D3] = (addr >> 8) & 0xFF;
         reqAllLinkDatab[OFFSET_D4] = addr & 0xFF;
     }
+    m_lastRequestedAddr = addr;
     PlaceCheckSum(reqAllLinkDatab);
     m_plm->queueCommand(reqAllLinkDatab, sizeof(reqAllLinkDatab), 23);
 }
@@ -270,8 +266,8 @@ int InsteonDevice::startGatherLinkTable()
         m_UnusedLinks.clear();
         m_LinkTableComplete = false;
         m_finalAddr = 0;
+        reqAllLinkData(0);
     }
-    reqAllLinkData(0);
     return 1;
 }
 
@@ -307,7 +303,7 @@ int InsteonDevice::createLinkWithModem(unsigned char group, bool amController, I
 }
 
 
-static void InitExtMsg(unsigned char *extMsg)
+void InsteonDevice::InitExtMsg(unsigned char *extMsg)
 {
     unsigned char init[EXTMSG_COMMAND_LEN] =
     { 0x02, 0x62, 

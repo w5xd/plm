@@ -12,13 +12,29 @@
 #include <boost/thread.hpp>
 #include <boost/function.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
-#include "Dimmer.h"
-#include "Keypad.h"
 
 namespace w5xdInsteon {
+    class Dimmer;
+    class Keypad;
+    class Fanlinc;
+    class InsteonDevice;
     class PlmMonitorIO;
+    class InsteonLinkEntry;
 
     extern void bufferToStream(std::ostream &st, const unsigned char *v, int s);
+
+    // class for holding pointers to InsteonDevices sorted by their Device address.
+    class InsteonDevicePtr
+    {
+    public:
+        InsteonDevicePtr(InsteonDevice *p) : m_p(p){} // takes ownership of p
+        InsteonDevicePtr(boost::shared_ptr<InsteonDevice> p) : m_p(p){}
+        InsteonDevicePtr(const unsigned char addr[3]);
+        bool operator < (const InsteonDevicePtr &other) const ;
+    public:
+        boost::shared_ptr<InsteonDevice>    m_p;
+    };
+
 
     class InsteonCommand
     {
@@ -66,6 +82,8 @@ namespace w5xdInsteon {
         {return getDeviceAccess<Dimmer>(addr);}
         Keypad *getKeypadAccess(const char *addr)
         {return getDeviceAccess<Keypad>(addr);}
+        Fanlinc *getFanlincAccess(const char *addr)
+        {return getDeviceAccess<Fanlinc>(addr);}
 
         boost::shared_ptr<InsteonCommand> 
             queueCommand(const unsigned char *v, unsigned s, unsigned resLen, bool retry = true, InsteonCommand::CompletionCb_t fcn=0);

@@ -217,6 +217,14 @@
 				>
 			</File>
 			<File
+				RelativePath=".\Fanlinc.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\Fanlinc.h"
+				>
+			</File>
+			<File
 				RelativePath=".\InsteonDevice.cpp"
 				>
 			</File>

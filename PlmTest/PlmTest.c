@@ -86,6 +86,8 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
     const char *modName = "";
     const char *dimmerAddr = 0;
     Dimmer dimmer=0;
+    Fanlinc fanlinc=0;
+    int flFlag = 0;
     int reset = 0;
     int cmdStartLink = 0; /* >0 is link as control, <0 is responder*/
     int linkGroup = -1;
@@ -101,6 +103,7 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
     int messageLevel = -1;
     int keypadButton = -1;
     int keypadMask = -1;
+    int SetButtonPressed = 0;
     char keypadArg = 0;
     const char *controllerLink = 0;
     const char *controllerUnlink = 0;
@@ -125,6 +128,7 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
             " -g <grp> Set group number for -s and -l to grp\n"
             " -d x.y.z Dimmer operations on Insteon address x,y.z\n"
             "          \n"
+            " -fl      Fanlinc instead of dimmer. -s operates on fan\n"
             " -d pl    Print modem link table. Can be combined with another -d\n"
             " -s <value> Command group grp or dimmer to on or off\n"
             "          -1 with -d runs a dimmer test sequence\n"
@@ -147,6 +151,7 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
             " -U <x.y.z> <ls3>\n"
             "           Unlinks -d as responder, x.y.z as controller on controller group -g and with ls3 on responder\n"
             "           If -d not specified, then it unlinks PLM as responder.\n"
+            " -SBL      Press Set button--Link mode on group -g \n"
             " -m <n>    Set message level to n.\n"
             " --        means read stdin for more commands\n"
             " <ComPort> is required. On Windows COMn, on Linux, /dev/ttyUSBn\n"
@@ -224,6 +229,15 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
                         dimmerTest = 1;
                 }
                 break;
+            case 'S':
+                if (strcmp("-SBL", argv[i]) == 0)
+                    SetButtonPressed = 1;
+                else
+                {
+                    fprintf(stderr, "Unrecognized option %s\n", argv[i]);
+                    return -1;
+                }
+                break;
             case 'w':
                 if ((i < argc - 1) && isdigit(argv[i+1][0]))
                     *waitSeconds = atoi(argv[++i]);                
@@ -291,6 +305,15 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
                 break;
             case '-':
                 *readStdin = 1;
+                break;
+            case 'f':
+                if (strcmp("-fl", argv[i]) == 0)
+                    flFlag = 1;
+                else
+                {
+                    fprintf(stderr, "unknown option %s\n", argv[i]);
+                    return 1;
+                }
                 break;
             case 'k':
                 if (i < argc - 2)
@@ -397,7 +420,16 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
     {
         clearModemLinkData(m);
         return 0;
-    }     
+    }  
+
+    if (SetButtonPressed != 0)
+    {
+        if (!dimmerAddr)
+        {
+            fprintf(stderr, "-SBL must also have -d\n");
+            return -1;
+        }
+    }
 
     if (printModemLinks)
     {
@@ -411,6 +443,12 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
 
     if (dimmerAddr)
         dimmer = getDimmerAccess(m, dimmerAddr);
+
+    if (flFlag)
+    {
+        fanlinc = getFanlincAccess(m, dimmerAddr);
+        dimmer = (Dimmer)fanlinc;
+    }
 
     if (allStuff)
     {
@@ -552,7 +590,10 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
             }
             else
             {
-                setDimmerValue(dimmer, setVal);
+                if (fanlinc)
+                    setFanSpeed(fanlinc, setVal);
+                else
+                    setDimmerValue(dimmer, setVal);
             }
         }
 
@@ -633,8 +674,18 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
         fprintf(stderr, "-X command returned %d\n", v);
     }
 
+    {
+        int ret;
+        if (SetButtonPressed != 0)
+        {
+            ret = enterLinkMode(dimmer, (unsigned char)linkGroup);
+        }
+    }
 
+#if 1
     SLEEP(*waitSeconds);
+#else   
+#endif
 
     return 0;
 }
