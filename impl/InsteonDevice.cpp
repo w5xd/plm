@@ -109,7 +109,7 @@ void InsteonDevice::incomingMessage(const std::vector<unsigned char> &v, boost::
         static const unsigned char StartExtended[] = { 0x2, 0x51};
         if (memcmp(&v[START_BYTE], StartExtended, sizeof(StartExtended)) == 0)
         {
-            if (m_plm->m_verbosity >= PlmMonitor::MESSAGE_EVERY_IO)
+            if (m_plm->m_verbosity >= PlmMonitor::MESSAGE_ON)
                 dumpFlags(m_plm->cerr(), v);
             if ((v[FLAG_BYTE] & 0xF0) == EXTMSG_BIT)
             {
@@ -176,7 +176,7 @@ void InsteonDevice::incomingMessage(const std::vector<unsigned char> &v, boost::
         static const unsigned char StartStandard[] = { 0x2, 0x50};
         if ((memcmp(&v[START_BYTE], StartStandard, sizeof(StartStandard)) == 0))
         {
-            if (m_plm->m_verbosity >= PlmMonitor::MESSAGE_EVERY_IO)
+            if (m_plm->m_verbosity >= PlmMonitor::MESSAGE_ON)
                 dumpFlags(m_plm->cerr(), v);
 
             if ((v[FLAG_BYTE] & 0xF0) == GROUP_BIT)

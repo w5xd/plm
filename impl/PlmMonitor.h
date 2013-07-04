@@ -103,7 +103,9 @@ namespace w5xdInsteon {
             unsigned char ls1;
             unsigned char ls2;
             unsigned char ls3;
+            boost::posix_time::ptime    m_received;
             NotificationEntry() : group(0), cmd1(0), cmd2(0), ls1(0), ls2(0), ls3(0){}
+            bool operator == (const NotificationEntry &other)const;
         };
         mutable boost::mutex    m_mutex;
         std::ofstream   m_errorFile;
@@ -126,7 +128,9 @@ namespace w5xdInsteon {
         typedef std::vector<InsteonLinkEntry> LinkTable_t;
         LinkTable_t  m_ModemLinks;
         std::string m_linkTablePrinted;
-        std::deque<NotificationEntry> m_notifications;
+        typedef std::deque<boost::shared_ptr<NotificationEntry> > NotificationEntryQueue_t;
+        NotificationEntryQueue_t m_notifications;
+        NotificationEntryQueue_t m_priorNotifications;
         bool m_queueNotifications;
 
         void startLinking(unsigned char);

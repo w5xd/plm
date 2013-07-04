@@ -601,12 +601,15 @@ void PlmMonitor::deliverfromRemoteMessage(boost::shared_ptr<std::vector<unsigned
                         boost::mutex::scoped_lock l(m_mutex);
                         if (m_queueNotifications)
                         {
-                            m_notifications.push_back(NotificationEntry());
-                            NotificationEntry &ne = m_notifications.back();
+                            boost::posix_time::ptime now(boost::posix_time::microsec_clock::universal_time());
+                            // put together a NotificationEntry for this message
+                            boost::shared_ptr<NotificationEntry> nep (new NotificationEntry());
+                            NotificationEntry &ne = *nep.get();
                             ne.m_device = p;
                             ne.group = group;
                             ne.cmd1 = cmd1;
                             ne.cmd2 = cmd2;
+                            ne.m_received = now;
                             for (LinkTable_t::iterator itor = m_ModemLinks.begin();
                                 itor != m_ModemLinks.end();
                                 itor ++)
@@ -621,8 +624,33 @@ void PlmMonitor::deliverfromRemoteMessage(boost::shared_ptr<std::vector<unsigned
                                     break;
                                 }
                             }
-                            m_condition.notify_all();
+
+                            bool duplicate = false;
+                            for (NotificationEntryQueue_t::iterator itor = m_priorNotifications.begin();
+                                    itor != m_priorNotifications.end();
+                                    )
+                            {
+                                if ((now - itor->get()->m_received) > 
+                                    boost::posix_time::time_duration(0, 0, 1))
+                                {   // anything old in the notification queue is deleted
+                                    itor = m_priorNotifications.erase(itor);
+                                }
+                                else
+                                {   // anything not too told in the queue is compared with the new one
+                                    if (*itor->get() == ne)
+                                        duplicate = true;
+                                    itor++;
+                                }
+                            }
+                            m_priorNotifications.push_back(nep);
+                            if (!duplicate)
+                            {
+                                m_notifications.push_back(nep);
+                                m_condition.notify_all();
+                            }
                         }
+                        else
+                            m_priorNotifications.clear();
                     }
                 }
             }
@@ -1051,7 +1079,7 @@ int PlmMonitor::monitor(int waitSeconds, InsteonDevice *&dimmer,
     m_ThreadRunning -= 1;
     if (m_notifications.empty())
         return 0;
-    NotificationEntry &ne = m_notifications.front();
+    NotificationEntry &ne = *m_notifications.front().get();
     dimmer = ne.m_device.get();
     group = ne.group;
     cmd1 = ne.cmd1;
@@ -1071,11 +1099,24 @@ void PlmMonitor::queueNotifications(bool v)
         if (!v)
         {
             m_notifications.clear();
+            m_priorNotifications.clear();
         }
     }
     m_condition.notify_all();
 }
 
+bool PlmMonitor::NotificationEntry::operator == (const NotificationEntry &other) const
+{
+    if (*m_device.get()->addr() != *other.m_device.get()->addr())
+        return false;
+    if (group != other.group)
+        return false;
+    if (other.cmd1 != cmd1)
+        return false;
+    if (other.cmd2 != cmd2)
+        return false;
+    return true;
+}
 
 // force a couple of template instantiations. These are currently used above, but show how to make more, if needed
 template Dimmer *PlmMonitor::getDeviceAccess<Dimmer>(const char *);
