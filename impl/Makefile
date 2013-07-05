@@ -3,7 +3,7 @@ APACHE_DEFINES = -D_REENTRANT -D_GNU_SOURCE
 CC_FLAGS = -O2 -pthread -c -fPIC -DPIC -DLINUX32
 
 OBJECTS = PlmMonitor.o PlmMonitorMap.o PlmMonitorLinux.o PowerLineModule.o \
-    Dimmer.o InsteonDevice.o Keypad.o
+    Dimmer.o InsteonDevice.o Keypad.o Fanlinc.o
 
 all: clean ../lib/libw5xdInsteon.so ../bin/w5xdInsteon.so
 
@@ -11,6 +11,8 @@ clean:
 	rm -f *.o ../lib/libw5xdInsteon.so ../bin/w5xdInsteon.so
 
 PlmMonitor.o: PlmMonitor.cpp PlmMonitor.h Dimmer.h Keypad.h
+
+Fanlinc.o: Fanlinc.cpp Fanlinc.h
 
 PlmMonitorLinux.o: PlmMonitorLinux.cpp PlmMonitorLinux.h PlmMonitor.h
 
