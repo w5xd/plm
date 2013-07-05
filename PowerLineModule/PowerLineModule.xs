@@ -283,3 +283,6 @@ int setFanSpeed(fanlinc, speed)
 	Fanlinc fanlinc
 	unsigned char speed
 
+int getFanSpeed(fanlinc)
+	Fanlinc fanlinc
+

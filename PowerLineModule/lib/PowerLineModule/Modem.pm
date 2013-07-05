@@ -7,6 +7,7 @@ use warnings;
 require PowerLineModule;
 require PowerLineModule::Dimmer;
 require PowerLineModule::Keypad;
+require PowerLineModule::Fanlinc;
 
 sub new {
     my $class = shift;
@@ -79,6 +80,18 @@ sub getKeypad {
     else { return 0; }
 }
 
+sub getFanlinc {
+    my $self = shift;
+    my $fanlinc = PowerLineModule::getFanlincAccess( $self->{_modem}, shift );
+    if ( $fanlinc != 0 ) {
+	my $ret = $self->{_dimmerHash}->{$fanlinc};
+	if (defined($ret)) { return $ret; }
+        $ret = PowerLineModule::Fanlinc->new($fanlinc);
+	$self->{_dimmerHash}->{$fanlinc} = $ret;
+	return $ret;
+    }
+    else { return 0; }
+}
 sub getModemLinkRecords {
     my $self = shift;
     return PowerLineModule::getModemLinkRecords( $self->{_modem} );
