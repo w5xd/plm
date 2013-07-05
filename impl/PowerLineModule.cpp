@@ -281,4 +281,10 @@ POWERLINE_DLL_ENTRY(int) setFanSpeed(Fanlinc fanlinc, unsigned char speed)
     return reinterpret_cast<w5xdInsteon::Fanlinc *>(fanlinc)->setFanSpeed(speed);
 }
 
+POWERLINE_DLL_ENTRY(int) getFanSpeed(Fanlinc fanlinc)
+{
+    if (!fanlinc)
+        return -1;
+    return reinterpret_cast<w5xdInsteon::Fanlinc *>(fanlinc)->getFanSpeed();
+}
 

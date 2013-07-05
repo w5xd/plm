@@ -583,7 +583,7 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
             int v;
             if (setVal < 0)
             {
-                v = getDimmerValue(dimmer, 0);
+                v = fanlinc ? getFanSpeed(fanlinc) : getDimmerValue(dimmer, 0);
                 fprintf(stdout, "Getdimmer value=%d\n", v);
                 if (dimmerTest)
                     DimmerTest(dimmer);

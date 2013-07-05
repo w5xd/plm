@@ -14,6 +14,8 @@ public:
 
     int setFanSpeed(unsigned char v);   /* range of 0 to 0xff */
 
+    int getFanSpeed() ;
+
 };
 }
 #endif

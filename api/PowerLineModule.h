@@ -126,6 +126,7 @@ extern "C" {
     /* get dimmer access by dimmer hardware address */
     POWERLINE_DLL_ENTRY(Fanlinc) getFanlincAccess(Modem modem, const char *addr);
     POWERLINE_DLL_ENTRY(int) setFanSpeed(Fanlinc fanlinc, unsigned char speed);
+    POWERLINE_DLL_ENTRY(int) getFanSpeed(Fanlinc fanlinc);
 
 #ifdef __cplusplus
 }

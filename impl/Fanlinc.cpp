@@ -26,4 +26,25 @@ int Fanlinc::setFanSpeed(unsigned char v)
     return 0;
 }
 
+int Fanlinc::getFanSpeed()
+{
+        unsigned char getStatus[8] =
+        { 0x02, 0x62, 0, 0, 0, 0xF, 0x19, 3};
+        memcpy(&getStatus[2], m_addr, 3);
+        {
+            boost::posix_time::ptime start(boost::posix_time::microsec_clock::universal_time());
+            boost::mutex::scoped_lock l(m_mutex);
+            boost::shared_ptr<InsteonCommand> p = m_plm->queueCommand(getStatus, sizeof(getStatus), 9);
+            m_lastQueryCommandId = p->m_globalId;
+            m_valueKnown = false;
+            static const int secondsToWait = 5;
+            while (!m_valueKnown && (boost::posix_time::microsec_clock::universal_time() - start).total_seconds() < secondsToWait)
+            {
+                m_condition.timed_wait(l, boost::posix_time::time_duration(0, 0, secondsToWait));
+            }
+            if (m_valueKnown) return m_lastKnown;
+        }
+        return -10;
+}
+
 }
