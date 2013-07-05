@@ -20,7 +20,6 @@ sub new {
     $self->{_modem}   = $res[0];
     $self->{_wasOpen} = $res[1];
     $self->{_dimmerHash} = {};
-    $self->{_keypadHash} = {};
     bless $self, $class;
     return $self;
 }
@@ -34,10 +33,7 @@ sub shutdown {
     my $self = shift;
     my $dimmerHash = $self->{_dimmerHash};
     foreach my $dm (keys %$dimmerHash) { $dimmerHash->{$dm}->destruct();  } 
-    my $kpHash = $self->{_keypadHash};
-    foreach my $kp (keys %$kpHash) { $kpHash->{$kp}->destruct();    } 
     $self->{_dimmerHash} = {};
-    $self->{_keypadHash} = {};
     my $modem = delete $self->{_modem};
     return PowerLineModule::shutdownModem( $modem );
 }
@@ -74,10 +70,10 @@ sub getKeypad {
     my $self = shift;
     my $keypad = PowerLineModule::getKeypadAccess( $self->{_modem}, shift );
     if ( $keypad != 0 ) {
-	my $ret = $self->{_keypadHash}->{$keypad};
+	my $ret = $self->{_dimmerHash}->{$keypad};
 	if (defined($ret)) { return $ret; }
         $ret = PowerLineModule::Keypad->new($keypad);
-	$self->{_keypadHash}->{$keypad} = $ret;
+	$self->{_dimmerHash}->{$keypad} = $ret;
 	return $ret;
     }
     else { return 0; }
@@ -116,15 +112,12 @@ sub cancelLinking {
    return PowerLineModule::cancelLinking( $self->{_modem} );
 }
 
-#Two more args--dimmer callback function and keypad callback function
 #NOTE: when called by threads->create the Modem object is COPIED, as are
 #the Dimmer's and Keypad's that it references. So get___Access() functions
 #all have to be called before thread->create(). 
 sub monitor {
     my $self = shift;
     my $waitSecs = shift; #if < 0 waits forever and should be on own thread
-    my $dimcb = shift;
-    my $kpcb = shift;
     while (1) {
 	    my @res = PowerLineModule::monitor($self->{_modem}, $waitSecs);
 	    if (($#res < 7) || !$res[0]) { return; }
@@ -136,18 +129,14 @@ sub monitor {
 	    # res[5] is link ls1. Will be 0 unless getModemLinkRecords previously called
 	    # res[6] is link ls2
 	    # res[7] is link ls3
-	    my $kphash = $self->{_keypadHash};
 	    my $dmhash = $self->{_dimmerHash};
-	    my $kp = $kphash->{$res[1]};
 	    my $dm = $dmhash->{$res[1]};
+	    my $dmcb = $dm->monitorCb();
 	    # invoke callbacks
 	    shift @res; # remove the first array entry (useless to callbacks)
-	    if (defined($kp) && defined($kpcb)) {   
-		    $res[0] = $kp; # replace C pointer with perl Keypad reference
-		    $kpcb->(@res); }
-            elsif (defined($dm) && defined ($dimcb)) {
+            if (defined($dm) && defined ($dmcb)) {
 		    $res[0] = $dm; # replace C pointer with perl Dimmer reference
-		    $dimcb->(@res); }
+		    $dmcb->(@res); }
     }
 }
 

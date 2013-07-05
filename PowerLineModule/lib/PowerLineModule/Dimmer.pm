@@ -25,14 +25,17 @@ sub setValue {
     return PowerLineModule::setDimmerValue( $self->{_dimmer}, shift );
 }
 
-sub setName {
+#without arg, returns name property. With an arg, sets it and returns it
+sub name {
 	my $self = shift;
-	$self->{_name} = shift;
+	if (@_) {$self->{_name} = shift; }
+	return $self->{_name};
 }
 
-sub getName {
-    my $self = shift;
-    return $self->{_name};
+sub monitorCb {
+	my $self = shift;
+	if (@_) { $self->{_monitorCb} = shift; }
+	return $self->{_monitorCb};
 }
 
 sub setFast {
@@ -152,4 +155,11 @@ sub createModemGroupToMatch {
     my $group = shift;
     return PowerLineModule::createModemGroupToMatch( $group, $self->{_dimmer} );
 }
+
+sub enterLinkMode {
+    my $self = shift;
+    my $group = shift;
+    return PowerLineModule::enterLinkMode($self->{_dimmer}, $group);
+}
+
 1;

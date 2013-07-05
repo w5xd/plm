@@ -17,6 +17,11 @@ getDimmerAccess(modem, addr)
 	Modem	modem
 	char *	addr
 
+Fanlinc
+getFanlincAccess(modem, addr)
+	Modem	modem
+	char *	addr
+
 int
 startLinking(modem, group, multiple)
 	Modem	modem
@@ -219,6 +224,11 @@ setX10Code(dimmer, houseCode, unit)
 		RETVAL = setX10Code(dimmer, houseCode[0], unit);
                 XPUSHs(sv_2mortal(newSViv(RETVAL)));
 
+int
+enterLinkMode(dimmer, group)
+	Dimmer dimmer
+	unsigned char group
+
 Keypad
 getKeypadAccess(modem, addr)
 	Modem	modem
@@ -268,4 +278,8 @@ int setBtnX10Code(keypad, houseCode, unit, btn)
 	PPCODE:
 		RETVAL = setBtnX10Code(keypad, houseCode[0], unit, btn);
                 XPUSHs(sv_2mortal(newSViv(RETVAL)));
+
+int setFanSpeed(fanlinc, speed)
+	Fanlinc fanlinc
+	unsigned char speed
 

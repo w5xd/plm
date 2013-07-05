@@ -176,7 +176,7 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
         else switch (argv[i][1])
         {
             case 'R':
-                if (strcmp(argv[i], "Reset") == 0)
+                if (strcmp(argv[i], "-Reset") == 0)
                     reset = 1;
                 else
                 {
@@ -685,6 +685,43 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
 #if 1
     SLEEP(*waitSeconds);
 #else   
+    // The sensor components turn their receivers ON only when they want to transmit
+    // This code sends them some query commands on receipt of a transmission from a sensor
+    {
+        int sleep = *waitSeconds;
+        int started = 0;
+        int extended = 0;
+        if (sleep > 0)
+            setMonitorState(m, 1);
+        while (sleep-- > 0)
+        {
+            Dimmer d=0; unsigned char group=0, cmd1=0, cmd2=0, ls1, ls2, ls3;
+            int ret = monitorModem(m, 1, &d, &group, &cmd1, &cmd2, &ls1, &ls2, &ls3);
+            fprintf(stdout, "monitor ret:%d, %d, %d, %d\n", ret, (int)d, (int)group, (int) cmd1, (int) cmd2);
+            if (!started && ret > 0)
+            {
+                started = 1;
+                startGatherLinkTable(dimmer);
+            }
+            else if (started)
+            {
+                int links = getNumberOfLinks(dimmer);
+                fprintf(stdout, "number of links: %d\n", links);
+                if (links > 0)
+                {
+                    const char *c = printLinkTable(dimmer);
+                    if (c)
+                        fprintf(stdout, "%s", c);
+                }
+                if (!extended)
+                {
+                    extended = 1;
+                    extendedGet(dimmer, 1, 0, 0);
+                }
+            }
+                
+        }
+    }
 #endif
 
     return 0;
