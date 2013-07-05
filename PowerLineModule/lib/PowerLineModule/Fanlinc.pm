@@ -24,7 +24,7 @@ sub setFanSpeed() {
 
 sub getFanSpeed() {
     my $self = shift;
-    return PowerLineModule::getFanSpeed($self->{_fanlinc}, shift );
+    return PowerLineModule::getFanSpeed($self->{_fanlinc});
 }
 
 1;

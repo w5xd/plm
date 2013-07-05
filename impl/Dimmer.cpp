@@ -75,6 +75,7 @@ void Dimmer::incomingMessage(const std::vector<unsigned char> &v, boost::shared_
                 if (m_plm->getErrorLevel() >= static_cast<int>(PlmMonitor::MESSAGE_ON))
                     m_plm->cerr()  << "Dimmer value "<< std::dec << (int)m_lastKnown << " received for device: " << 
                     m_addr <<                   std::endl;
+                m_lastQueryCommandId = 0;
             }
         }
     }
