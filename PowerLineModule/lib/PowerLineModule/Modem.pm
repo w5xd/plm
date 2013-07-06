@@ -131,9 +131,10 @@ sub cancelLinking {
 sub monitor {
     my $self = shift;
     my $waitSecs = shift; #if < 0 waits forever and should be on own thread
+    my $ret = 0;
     while (1) {
 	    my @res = PowerLineModule::monitor($self->{_modem}, $waitSecs);
-	    if (($#res < 7) || !$res[0]) { return; }
+	    if (($#res < 7) || !$res[0]) { return $ret; }
 	    # res[0] is non-zero to contiue
 	    # res[1] is C pointer to InsteonDevice receiving notice
 	    # res[2] is insteon group #
@@ -142,6 +143,7 @@ sub monitor {
 	    # res[5] is link ls1. Will be 0 unless getModemLinkRecords previously called
 	    # res[6] is link ls2
 	    # res[7] is link ls3
+            $ret += 1;
 	    my $dmhash = $self->{_dimmerHash};
 	    my $dm = $dmhash->{$res[1]};
 	    my $dmcb = $dm->monitorCb();
