@@ -70,12 +70,13 @@ __END__
 
 =head1 NAME
 
-PowerLineModule - Perl extension that reads/writes insteon powerline modem
+PowerLineModule - Perl wrapper for insteon powerline modem w5xdInsteon.dll
 
 =head1 SYNOPSIS
 
   require PowerLineModule;
-  my $modem = PowerLineModule::Modem->new("COM1", 0, "MyLogFile.txt");
+  my $diagnosticsLevel = 1;
+  my $modem = PowerLineModule::Modem->new("COM1", $diagnosticsLevel, "MyLogFile.txt");
   #or, for Linux, /dev/ttyS0 instead of COM1
   if ($modem->openOk())
   {
@@ -85,6 +86,16 @@ PowerLineModule - Perl extension that reads/writes insteon powerline modem
 	$dimmer->setValue(255); #set to full brightness
 	$keypad->setWallLEDbrightness(64); #0 to 64
   }
+
+  #deal with events...
+  sub insteonEvent { #...
+  	}
+   
+   $dimmer->monitorCb(\&insteonEvent); #bind dimmer to sub address
+   my $waitSeconds = 1;
+   while (1) {
+      $modem->monitor($waitSeconds); #calls insteonEvent
+   }
 
 =head1 DESCRIPTION
 
@@ -114,3 +125,4 @@ at your option, any later version of Perl 5 you may have available.
 
 
 =cut
+

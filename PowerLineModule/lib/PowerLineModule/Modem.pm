@@ -1,6 +1,8 @@
 # Copyright (c) 2013 by Wayne Wright, Round Rock, Texas.
 # See license at http://github.com/w5xd/plm/blob/master/LICENSE.md
 package PowerLineModule::Modem;
+# class that wraps the w5xdInsteon.dll modem object
+#
 use 5.010001;
 use strict;
 use warnings;
@@ -155,6 +157,9 @@ sub monitor {
     }
 }
 
+# while setMonitorState is non-zero, the dll saves all notifications until
+# called on its monitor method. Call setMonitorState(0) to let it dispose
+# of notifications not yet delivered.
 sub setMonitorState {
     my $self = shift;
     my $newState = shift;
