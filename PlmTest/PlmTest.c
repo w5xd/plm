@@ -341,7 +341,7 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
 
     if (createLinks && !dimmerAddr)
     {
-        fprintf(stderr, "Can't do -c unless also do -d\n");
+        fprintf(stderr, "Can't do -x unless also do -d\n");
         return -1;
     }
 
