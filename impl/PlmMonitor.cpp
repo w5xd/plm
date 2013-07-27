@@ -34,7 +34,8 @@ void bufferToStream(std::ostream &st, const unsigned char *v, int s)
 void PlmMonitor::timeStamp(std::ostream &st)
 {
     boost::posix_time::ptime now(boost::posix_time::microsec_clock::universal_time());
-    st << now << " (" << std::setfill(' ') << std::setw(13) << std::fixed << std::showpoint << std::setprecision(6) << (now-m_startupTime).total_microseconds() / 1000000.0 << ") ";
+    st << now << " (" << std::setfill(' ') << std::setw(13) << std::fixed << std::showpoint << std::setprecision(6) 
+        << (now-m_startupTime).total_microseconds() / 1000000.0 << ") ";
 }
 
 /**********************************************************************
