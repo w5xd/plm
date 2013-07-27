@@ -227,7 +227,7 @@ const char * InsteonDevice::printLinkTable()
        return 0;
     }
     std::ostringstream linkTablePrinted;
-    linkTablePrinted << "printLinkTable for device " << m_addr << std::endl << "addr flag group ID ls1 ls2 ls3" << std::endl;
+    linkTablePrinted << "printLinkTable for device " << m_addr << std::endl << "addr flag group  ID       ls1 ls2 ls3" << std::endl;
     for (LinkTable_t::const_iterator itor = m_LinkTable.begin();
             itor != m_LinkTable.end();
             itor++)

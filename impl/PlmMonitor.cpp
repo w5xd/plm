@@ -482,7 +482,7 @@ void PlmMonitor::ioThread()
 		        if (m_verbosity >= static_cast<int>(MESSAGE_ON))
 		        {
                     timeStamp(cerr());
-                    cerr() << "delivering remote message" << std::endl;
+                    cerr() << "Delivering remote message" << std::endl;
 			        bufferToStream(cerr(), &(*msg)[0], msg->size());
 			        cerr() << std::endl;
 		        }
@@ -1055,7 +1055,7 @@ const char * PlmMonitor::printModemLinkTable()
         return 0;
     }
     std::ostringstream linkTablePrinted;
-    linkTablePrinted << "Modem links" << std::endl << "flag group ID ls1 ls2 ls3" << std::endl;
+    linkTablePrinted << "Modem links" << std::endl << "flag group   ID       ls1 ls2 ls3" << std::endl;
     for (LinkTable_t::const_iterator itor = m_ModemLinks.begin();
             itor != m_ModemLinks.end();
             itor++)
