@@ -46,6 +46,11 @@ sub logFileName {
     return $self->{_logfileName};
 }
 
+sub printLogString {
+    my $self = shift;
+    return PowerLineModule::printLogString( $self->{_modem}, shift );
+}
+
 sub commPort {
     my $self = shift;
     return $self->{_commPort};
