@@ -71,6 +71,7 @@ namespace w5xdInsteon {
         int setAllDevices(unsigned char grp, unsigned char v);
         int nextUnusedControlGroup()const;
         const char * printModemLinkTable() ;
+	int printLogString(const char *);
 
         template <class T>
         T *getDeviceAccess(const unsigned char addr[3]);

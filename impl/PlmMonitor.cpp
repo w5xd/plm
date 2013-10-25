@@ -66,6 +66,12 @@ PlmMonitor::~PlmMonitor()
     syncWithThreadState(false);
 }
 
+int PlmMonitor::printLogString(const char *s)
+{
+    if (s) cerr() << s;
+    return 1;
+}
+
 const std::string &PlmMonitor::commPortName() const {return m_io->commPortName();}
 
 void PlmMonitor::syncWithThreadState(bool v)
