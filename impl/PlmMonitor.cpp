@@ -20,6 +20,7 @@ namespace w5xdInsteon {
 static int gNextId = 10349;
 enum {MAX_COMMAND_READS = 5, MAX_RETRIES = 8};
 static const int COMMAND_DELAY_MSEC = 1000;
+const unsigned char PlmMonitor::SET_ACQ_MSG_BYTE = 0x68;
 
 void bufferToStream(std::ostream &st, const unsigned char *v, int s)
 {
@@ -124,7 +125,18 @@ boost::shared_ptr<InsteonCommand> PlmMonitor::queueCommand(
     {
         boost::mutex::scoped_lock l(m_mutex);
         p->m_globalId = ++m_nextCommandId;
-        m_writeQueue.push_back(p);
+        if (m_writeQueue.empty() || (s <= 1) || v[1] != SET_ACQ_MSG_BYTE)
+            m_writeQueue.push_back(p);
+        else
+        {
+            // scoot this particular command ahead of anything that is not the same command
+            std::deque<boost::shared_ptr<InsteonCommand> >::reverse_iterator itor = m_writeQueue.rbegin();
+            while (itor != m_writeQueue.rend() && 
+                    ((*itor)->m_command.size() > 1) &&
+                    ((*itor)->m_command[1] != SET_ACQ_MSG_BYTE)) 
+                    itor++;
+            m_writeQueue.insert(itor.base(), p);
+        }
     }
     return p;
 }
@@ -1137,8 +1149,8 @@ bool PlmMonitor::NotificationEntry::operator == (const NotificationEntry &other)
 
 
 InsteonDevicePtr::InsteonDevicePtr(const unsigned char addr[3]): m_p(new InsteonDevice(0, addr)){}
-bool InsteonDevicePtr::operator < (const InsteonDevicePtr &other) const {return *m_p < *other.m_p;}
 
+bool InsteonDevicePtr::operator < (const InsteonDevicePtr &other) const {return *m_p < *other.m_p;}
 
 // force a couple of template instantiations. These are currently used above, but show how to make more, if needed
 template Dimmer *PlmMonitor::getDeviceAccess<Dimmer>(const char *);

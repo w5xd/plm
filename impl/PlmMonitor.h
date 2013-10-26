@@ -71,7 +71,7 @@ namespace w5xdInsteon {
         int setAllDevices(unsigned char grp, unsigned char v);
         int nextUnusedControlGroup()const;
         const char * printModemLinkTable() ;
-	int printLogString(const char *);
+	    int printLogString(const char *);
 
         template <class T>
         T *getDeviceAccess(const unsigned char addr[3]);
@@ -112,6 +112,7 @@ namespace w5xdInsteon {
         int getErrorLevel() const { return m_verbosity;}
         const unsigned char *insteonID()const{return m_IMInsteonId;}
         std::ostream &cerr(){return m_errorFile.is_open() ? m_errorFile : std::cerr;}
+        static const unsigned char SET_ACQ_MSG_BYTE;
    protected:
         typedef std::set<InsteonDevicePtr> InsteonDeviceSet_t;
         struct NotificationEntry {

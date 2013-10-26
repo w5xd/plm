@@ -99,7 +99,7 @@ void InsteonDevice::incomingMessage(const std::vector<unsigned char> &v, boost::
         boost::mutex::scoped_lock l(m_mutex);
         m_incomingMessageCount += 1;
     }
-    static const unsigned char ack[3] = {0x02, 0x68, 0};
+    static const unsigned char ack[3] = {0x02, PlmMonitor::SET_ACQ_MSG_BYTE, 0};
     if (v.size() >= 25)
     {
         static const unsigned char StartExtended[] = { 0x2, 0x51};
