@@ -15,12 +15,30 @@
 #include "PlmMonitorLinux.h"
 #endif
 
+#define DIM(x) (sizeof(x) / sizeof((x)[0]))
+
 namespace w5xdInsteon {
 
 static int gNextId = 10349;
 enum {MAX_COMMAND_READS = 5, MAX_RETRIES = 8};
 static const int COMMAND_DELAY_MSEC = 1000;
 const unsigned char PlmMonitor::SET_ACQ_MSG_BYTE = 0x68;
+const unsigned char PlmMonitor::SET_ACQ_MSG_2BYTE = 0x71;
+const unsigned char PlmMonitor::SET_NAQ_MSG_BYTE = 0x70;
+
+static const unsigned char OUT_OF_ORDER[] =
+{
+    PlmMonitor::SET_ACQ_MSG_BYTE,
+    PlmMonitor::SET_ACQ_MSG_2BYTE,
+    PlmMonitor::SET_NAQ_MSG_BYTE
+};
+
+static bool isOutOfOrder(unsigned char v)
+{
+    for (int i = 0 ; i < DIM(OUT_OF_ORDER); i++)
+        if (v == OUT_OF_ORDER[i]) return true;
+    return false;
+}
 
 void bufferToStream(std::ostream &st, const unsigned char *v, int s)
 {
@@ -125,7 +143,7 @@ boost::shared_ptr<InsteonCommand> PlmMonitor::queueCommand(
     {
         boost::mutex::scoped_lock l(m_mutex);
         p->m_globalId = ++m_nextCommandId;
-        if (m_writeQueue.empty() || (s <= 1) || v[1] != SET_ACQ_MSG_BYTE)
+        if (m_writeQueue.empty() || (s <= 1) || !isOutOfOrder(v[1]))
             m_writeQueue.push_back(p);
         else
         {
@@ -133,7 +151,7 @@ boost::shared_ptr<InsteonCommand> PlmMonitor::queueCommand(
             std::deque<boost::shared_ptr<InsteonCommand> >::reverse_iterator itor = m_writeQueue.rbegin();
             while (itor != m_writeQueue.rend() && 
                     ((*itor)->m_command.size() > 1) &&
-                    ((*itor)->m_command[1] != SET_ACQ_MSG_BYTE)) 
+                    !isOutOfOrder((*itor)->m_command[1]))
                     itor++;
             m_writeQueue.insert(itor.base(), p);
         }

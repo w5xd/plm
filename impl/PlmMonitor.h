@@ -113,6 +113,8 @@ namespace w5xdInsteon {
         const unsigned char *insteonID()const{return m_IMInsteonId;}
         std::ostream &cerr(){return m_errorFile.is_open() ? m_errorFile : std::cerr;}
         static const unsigned char SET_ACQ_MSG_BYTE;
+        static const unsigned char SET_ACQ_MSG_2BYTE;
+        static const unsigned char SET_NAQ_MSG_BYTE;
    protected:
         typedef std::set<InsteonDevicePtr> InsteonDeviceSet_t;
         struct NotificationEntry {
