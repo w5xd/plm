@@ -77,6 +77,13 @@ POWERLINE_DLL_ENTRY(void) setMonitorState(Modem modem, int state)
     reinterpret_cast<w5xdInsteon::PlmMonitor *>(modem)->queueNotifications(state != 0);
 }
 
+POWERLINE_DLL_ENTRY(int) setModemCommandDelay(Modem modem, int delayMilliseconds)
+{
+    if (!modem) return 0;
+    return reinterpret_cast<w5xdInsteon::PlmMonitor * >(modem)->setCommandDelay(delayMilliseconds);
+}
+
+
 POWERLINE_DLL_ENTRY(int) shutdownModem(Modem m)
 {
     if (!m) return 0;

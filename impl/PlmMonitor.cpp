@@ -73,7 +73,8 @@ PlmMonitor::PlmMonitor(const char *commPortName, const char *logFileName) :
     m_multipleLinkingRequested(0),
     m_haveAllModemLinks(false), 
     m_nextCommandId(0),
-    m_queueNotifications(false)
+    m_queueNotifications(false),
+    m_commandDelayMsec(COMMAND_DELAY_MSEC)
 {
     if (logFileName && *logFileName)
         m_errorFile.open(logFileName, std::ofstream::out | std::ofstream::app);
@@ -545,9 +546,9 @@ void PlmMonitor::ioThread()
                     boost::posix_time::ptime now(boost::posix_time::microsec_clock::universal_time());
                     if (
                         (temp->m_command.size() < 2) ||
-                        // commands 0x62 and 0x63 cannot be sent until COMMAND_DELAY_MSEC after the last thing we heard from the PLM
+                        // commands 0x62 and 0x63 cannot be sent until m_commandDelayMsec after the last thing we heard from the PLM
                         ((temp->m_command[1] != 0x62) && (temp->m_command[1] != 0x63)) ||
-                        ((now - timeOfLastIncomingMessage).total_milliseconds() > COMMAND_DELAY_MSEC)
+                        ((now - timeOfLastIncomingMessage).total_milliseconds() > m_commandDelayMsec)
                         )
                     {
                         m_writeQueue.pop_front();
@@ -1165,6 +1166,12 @@ bool PlmMonitor::NotificationEntry::operator == (const NotificationEntry &other)
     return true;
 }
 
+int PlmMonitor::setCommandDelay(int delayMsec)
+{
+    if ((delayMsec >= 10) && (delayMsec <= 10000))
+        m_commandDelayMsec = delayMsec;
+    return (int) m_commandDelayMsec;
+}
 
 InsteonDevicePtr::InsteonDevicePtr(const unsigned char addr[3]): m_p(new InsteonDevice(0, addr)){}
 

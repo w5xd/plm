@@ -48,6 +48,8 @@ extern "C" {
         unsigned char *ls1, unsigned char *ls2, unsigned char *ls3);
     /* explicit start/stop of modem monitor queue. monitorModem noWait==0 implicitly starts queueu*/
     POWERLINE_DLL_ENTRY(void) setMonitorState(Modem modem, int state);
+    /* set modem command delay. returns previous value. Valid range 10 to 10000*/
+    POWERLINE_DLL_ENTRY(int) setModemCommandDelay(Modem modem, int delayMilliseconds);
     /* after shutdownModem, the modem won't work until another open */
     POWERLINE_DLL_ENTRY(int) shutdownModem(Modem  modem);
     /* set to zero or less writes no messages. and 2 writes more than 1*/

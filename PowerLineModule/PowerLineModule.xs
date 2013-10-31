@@ -133,6 +133,11 @@ getNextUnusedControlGroup(modem)
 	Modem modem
 
 int
+setModemCommandDelay(modem, delayMsec)
+	Modem modem
+	int delayMsec
+
+int
 deleteGroupLinks(modem, group)
 	Modem modem
 	unsigned char group
