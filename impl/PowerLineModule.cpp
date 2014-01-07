@@ -18,6 +18,12 @@ POWERLINE_DLL_ENTRY(Modem) openPowerLineModem(const char *name, int *wasOpen, in
         wasOpen, level, logFileName));
 }
 
+POWERLINE_DLL_ENTRY(int) printLogString(Modem m, const char *s)
+{
+	if (!m) return 0;
+	return reinterpret_cast<w5xdInsteon::PlmMonitor *>(m)->printLogString(s);
+}
+
 POWERLINE_DLL_ENTRY(int) setErrorLevel(Modem m, int level)
 {
     if (!m) return 0;
@@ -70,6 +76,13 @@ POWERLINE_DLL_ENTRY(void) setMonitorState(Modem modem, int state)
     if (!modem) return;
     reinterpret_cast<w5xdInsteon::PlmMonitor *>(modem)->queueNotifications(state != 0);
 }
+
+POWERLINE_DLL_ENTRY(int) setModemCommandDelay(Modem modem, int delayMilliseconds)
+{
+    if (!modem) return 0;
+    return reinterpret_cast<w5xdInsteon::PlmMonitor * >(modem)->setCommandDelay(delayMilliseconds);
+}
+
 
 POWERLINE_DLL_ENTRY(int) shutdownModem(Modem m)
 {

@@ -71,6 +71,7 @@ namespace w5xdInsteon {
         int setAllDevices(unsigned char grp, unsigned char v);
         int nextUnusedControlGroup()const;
         const char * printModemLinkTable() ;
+	    int printLogString(const char *);
 
         template <class T>
         T *getDeviceAccess(const unsigned char addr[3]);
@@ -109,8 +110,12 @@ namespace w5xdInsteon {
         int m_verbosity;
         int setErrorLevel(int v) { int ret = m_verbosity; m_verbosity = v; return ret;}
         int getErrorLevel() const { return m_verbosity;}
+        int setCommandDelay(int delayMsec);
         const unsigned char *insteonID()const{return m_IMInsteonId;}
         std::ostream &cerr(){return m_errorFile.is_open() ? m_errorFile : std::cerr;}
+        static const unsigned char SET_ACQ_MSG_BYTE;
+        static const unsigned char SET_ACQ_MSG_2BYTE;
+        static const unsigned char SET_NAQ_MSG_BYTE;
    protected:
         typedef std::set<InsteonDevicePtr> InsteonDeviceSet_t;
         struct NotificationEntry {
@@ -137,6 +142,7 @@ namespace w5xdInsteon {
         unsigned char    m_IMDeviceCat;
         unsigned char    m_IMDeviceSubCat;
         unsigned char    m_IMFirmwareVersion;
+        unsigned int m_commandDelayMsec;
         const int m_which;
         int m_nextCommandId;
         boost::posix_time::ptime    m_startupTime;

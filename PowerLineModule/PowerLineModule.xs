@@ -87,6 +87,11 @@ openPowerLineModem(commPortName, level, logFileName)
 	    XPUSHs(sv_2mortal(newSViv((IV)RETVAL))); /* will be [0] */
 	    XPUSHs(sv_2mortal(newSViv(wasOpen)));   /* will be [1] */
 
+int
+printLogString(modem, s)
+	Modem modem
+	char *	s
+
 void
 monitor(modem, waitSecs) 
 	Modem modem
@@ -126,6 +131,11 @@ getModemLinkRecords(modem)
 int
 getNextUnusedControlGroup(modem)
 	Modem modem
+
+int
+setModemCommandDelay(modem, delayMsec)
+	Modem modem
+	int delayMsec
 
 int
 deleteGroupLinks(modem, group)

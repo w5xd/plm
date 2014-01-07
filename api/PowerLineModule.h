@@ -30,6 +30,8 @@ extern "C" {
     */
     POWERLINE_DLL_ENTRY(Modem) openPowerLineModem(const char *commPortName, 
         int *wasOpen, int level, const char *logFileName);
+    /* send string to Modem's log file */
+    POWERLINE_DLL_ENTRY(int) printLogString(Modem modem, const char *);
     /* print the modem's link table */
     POWERLINE_DLL_ENTRY(const char *) printModemLinkTable(Modem modem);
     /* start device linking session as controller */
@@ -46,6 +48,8 @@ extern "C" {
         unsigned char *ls1, unsigned char *ls2, unsigned char *ls3);
     /* explicit start/stop of modem monitor queue. monitorModem noWait==0 implicitly starts queueu*/
     POWERLINE_DLL_ENTRY(void) setMonitorState(Modem modem, int state);
+    /* set modem command delay. returns previous value. Valid range 10 to 10000*/
+    POWERLINE_DLL_ENTRY(int) setModemCommandDelay(Modem modem, int delayMilliseconds);
     /* after shutdownModem, the modem won't work until another open */
     POWERLINE_DLL_ENTRY(int) shutdownModem(Modem  modem);
     /* set to zero or less writes no messages. and 2 writes more than 1*/
@@ -72,7 +76,7 @@ extern "C" {
     POWERLINE_DLL_ENTRY(int) setDimmerFast(Dimmer dimmer, int v);
     /* returns -1 if haven't startGatherLinkTable or timeout passes*/
     POWERLINE_DLL_ENTRY(int) getNumberOfLinks(Dimmer dimmer);
-    /* print links to stderr*/
+    /* print links to string*/
     POWERLINE_DLL_ENTRY(const char *) printLinkTable(Dimmer dimmer);
     /* given two insteon devices, link the second as a reponder to the first.
     ** The ls1, ls2, and ls3 values are usually important to the responder, but

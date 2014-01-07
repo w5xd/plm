@@ -15,11 +15,30 @@
 #include "PlmMonitorLinux.h"
 #endif
 
+#define DIM(x) (sizeof(x) / sizeof((x)[0]))
+
 namespace w5xdInsteon {
 
 static int gNextId = 10349;
 enum {MAX_COMMAND_READS = 5, MAX_RETRIES = 8};
 static const int COMMAND_DELAY_MSEC = 1000;
+const unsigned char PlmMonitor::SET_ACQ_MSG_BYTE = 0x68;
+const unsigned char PlmMonitor::SET_ACQ_MSG_2BYTE = 0x71;
+const unsigned char PlmMonitor::SET_NAQ_MSG_BYTE = 0x70;
+
+static const unsigned char OUT_OF_ORDER[] =
+{
+    PlmMonitor::SET_ACQ_MSG_BYTE,
+    PlmMonitor::SET_ACQ_MSG_2BYTE,
+    PlmMonitor::SET_NAQ_MSG_BYTE
+};
+
+static bool isOutOfOrder(unsigned char v)
+{
+    for (int i = 0 ; i < DIM(OUT_OF_ORDER); i++)
+        if (v == OUT_OF_ORDER[i]) return true;
+    return false;
+}
 
 void bufferToStream(std::ostream &st, const unsigned char *v, int s)
 {
@@ -54,7 +73,8 @@ PlmMonitor::PlmMonitor(const char *commPortName, const char *logFileName) :
     m_multipleLinkingRequested(0),
     m_haveAllModemLinks(false), 
     m_nextCommandId(0),
-    m_queueNotifications(false)
+    m_queueNotifications(false),
+    m_commandDelayMsec(COMMAND_DELAY_MSEC)
 {
     if (logFileName && *logFileName)
         m_errorFile.open(logFileName, std::ofstream::out | std::ofstream::app);
@@ -64,6 +84,12 @@ PlmMonitor::~PlmMonitor()
 {
     m_shutdown = true;
     syncWithThreadState(false);
+}
+
+int PlmMonitor::printLogString(const char *s)
+{
+    if (s) cerr() << s;
+    return 1;
 }
 
 const std::string &PlmMonitor::commPortName() const {return m_io->commPortName();}
@@ -118,7 +144,18 @@ boost::shared_ptr<InsteonCommand> PlmMonitor::queueCommand(
     {
         boost::mutex::scoped_lock l(m_mutex);
         p->m_globalId = ++m_nextCommandId;
-        m_writeQueue.push_back(p);
+        if (m_writeQueue.empty() || (s <= 1) || !isOutOfOrder(v[1]))
+            m_writeQueue.push_back(p);
+        else
+        {
+            // scoot this particular command ahead of anything that is not the same command
+            std::deque<boost::shared_ptr<InsteonCommand> >::reverse_iterator itor = m_writeQueue.rbegin();
+            while (itor != m_writeQueue.rend() && 
+                    ((*itor)->m_command.size() > 1) &&
+                    !isOutOfOrder((*itor)->m_command[1]))
+                    itor++;
+            m_writeQueue.insert(itor.base(), p);
+        }
     }
     return p;
 }
@@ -509,9 +546,9 @@ void PlmMonitor::ioThread()
                     boost::posix_time::ptime now(boost::posix_time::microsec_clock::universal_time());
                     if (
                         (temp->m_command.size() < 2) ||
-                        // commands 0x62 and 0x63 cannot be sent until COMMAND_DELAY_MSEC after the last thing we heard from the PLM
+                        // commands 0x62 and 0x63 cannot be sent until m_commandDelayMsec after the last thing we heard from the PLM
                         ((temp->m_command[1] != 0x62) && (temp->m_command[1] != 0x63)) ||
-                        ((now - timeOfLastIncomingMessage).total_milliseconds() > COMMAND_DELAY_MSEC)
+                        ((now - timeOfLastIncomingMessage).total_milliseconds() > m_commandDelayMsec)
                         )
                     {
                         m_writeQueue.pop_front();
@@ -1129,10 +1166,16 @@ bool PlmMonitor::NotificationEntry::operator == (const NotificationEntry &other)
     return true;
 }
 
+int PlmMonitor::setCommandDelay(int delayMsec)
+{
+    if ((delayMsec >= 10) && (delayMsec <= 10000))
+        m_commandDelayMsec = delayMsec;
+    return (int) m_commandDelayMsec;
+}
 
 InsteonDevicePtr::InsteonDevicePtr(const unsigned char addr[3]): m_p(new InsteonDevice(0, addr)){}
-bool InsteonDevicePtr::operator < (const InsteonDevicePtr &other) const {return *m_p < *other.m_p;}
 
+bool InsteonDevicePtr::operator < (const InsteonDevicePtr &other) const {return *m_p < *other.m_p;}
 
 // force a couple of template instantiations. These are currently used above, but show how to make more, if needed
 template Dimmer *PlmMonitor::getDeviceAccess<Dimmer>(const char *);
