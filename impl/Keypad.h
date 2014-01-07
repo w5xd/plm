@@ -33,13 +33,26 @@ public:
         return -1;
     }
 
+    int setRampRate(unsigned char btn, unsigned char rate)
+    {
+        if ((btn >= 1) && (btn <= 8))
+            return sendExtendedCommand(btn, 5, rate);
+        return -1;
+    }
+
+    int setOnLevel(unsigned char btn, unsigned char level)
+    {
+        if ((btn >= 1) && (btn <= 8))
+            return sendExtendedCommand(btn, 6, level);
+        return -1;
+    }
+
     int getX10Code(char &houseCode, unsigned char &unit, unsigned char btn) const 
     { 
         if ((btn >= 1) && (btn <= 8))
             return InsteonDevice::getX10Code(houseCode, unit, btn);
         return -1;
     }
-
 
     int setX10Code(char houseCode, unsigned char unit, unsigned char btn)
     {

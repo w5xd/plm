@@ -238,6 +238,18 @@ POWERLINE_DLL_ENTRY(int) setX10Code(Dimmer dimmer, char houseCode, unsigned char
     return reinterpret_cast<w5xdInsteon::Dimmer *>(dimmer)->setX10Code(houseCode, unit);
 }
 
+POWERLINE_DLL_ENTRY(int) setRampRate(Dimmer dimmer, unsigned char rate)
+{
+    if (!dimmer) return 0;
+    return reinterpret_cast<w5xdInsteon::Dimmer *>(dimmer)->setRampRate(rate);
+}
+
+POWERLINE_DLL_ENTRY(int) setOnLevel(Dimmer dimmer, unsigned char level)
+{
+    if (!dimmer) return 0;
+    return reinterpret_cast<w5xdInsteon::Dimmer *>(dimmer)->setOnLevel(level);
+}
+
 POWERLINE_DLL_ENTRY(int) setKeypadFollowMask(Keypad keypad, unsigned char button, unsigned char mask)
 {
     if (!keypad) return 0;
@@ -272,6 +284,18 @@ POWERLINE_DLL_ENTRY(int) setBtnX10Code(Keypad keypad, char houseCode, unsigned c
 {
     if (!keypad) return 0;
     return reinterpret_cast<w5xdInsteon::Keypad *>(keypad)->setX10Code(houseCode, unit, btn);
+}
+
+POWERLINE_DLL_ENTRY(int) setBtnRampRate(Keypad keypad, unsigned char rate, unsigned char btn)
+{
+    if (!keypad) return 0;
+    return reinterpret_cast<w5xdInsteon::Keypad *>(keypad)->setRampRate(rate, btn);
+}
+
+POWERLINE_DLL_ENTRY(int) setBtnOnLevel(Keypad keypad, unsigned char level, unsigned char btn)
+{
+    if (!keypad) return 0;
+    return reinterpret_cast<w5xdInsteon::Keypad *>(keypad)->setOnLevel(level, btn);
 }
 
 POWERLINE_DLL_ENTRY(int) setFanSpeed(Fanlinc fanlinc, unsigned char speed)

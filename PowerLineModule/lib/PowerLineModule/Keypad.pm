@@ -69,4 +69,19 @@ sub setX10Code {
     my $btn = shift;
     return PowerLineModule::setBtnX10Code($self->{_keypad}, $hc, $unit, $btn);
 }
+
+sub setBtnRampRate {
+    my $self = shift;
+    my $rate = shift;
+    my $button = shift;
+    return PowerLineModule::setBtnRampRate($self->{_keypad}, $rate, $button);
+}
+
+sub setBtnOnLevel {
+    my $self = shift;
+    my $level = shift;
+    my $button =shift;
+    return PowerLineModule::setBtnOnLevel($self->{_keypad}, $level, $button );
+}
+
 1;

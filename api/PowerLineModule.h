@@ -105,6 +105,8 @@ extern "C" {
     // range for houseCode is 'A' to 'P'. Range for unit is 1 to 16. If X10 is not set, then both are zero.
     POWERLINE_DLL_ENTRY(int) getX10Code(Dimmer dimmer, char *houseCode, unsigned char *unit);
     POWERLINE_DLL_ENTRY(int) setX10Code(Dimmer dimmer, char houseCode, unsigned char unit);
+    POWERLINE_DLL_ENTRY(int) setRampRate(Dimmer dimmer, unsigned char rate);
+    POWERLINE_DLL_ENTRY(int) setOnLevel(Dimmer dimmer, unsigned char level);
 
         /* get dimmer access by dimmer hardware address */
     POWERLINE_DLL_ENTRY(Keypad) getKeypadAccess(Modem modem, const char *addr);
@@ -121,6 +123,8 @@ extern "C" {
     POWERLINE_DLL_ENTRY(int) setNonToggleState(Keypad keypad, unsigned char button, unsigned char nonToggle);
     POWERLINE_DLL_ENTRY(int) getBtnX10Code(Keypad keypad, char *houseCode, unsigned char *unit, unsigned char btn);
     POWERLINE_DLL_ENTRY(int) setBtnX10Code(Keypad keypad, char houseCode, unsigned char unit, unsigned char btn);
+    POWERLINE_DLL_ENTRY(int) setBtnRampRate(Keypad keypad, unsigned char rate, unsigned char btn);
+    POWERLINE_DLL_ENTRY(int) setBtnOnLevel(Keypad keypad, unsigned char level, unsigned char btn);
 
     /* Fanlinc support */
     /* get dimmer access by dimmer hardware address */

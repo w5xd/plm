@@ -79,6 +79,18 @@ sub setX10Code {
     return PowerLineModule::setX10Code( $self->{_dimmer}, $hc, $unit );
 }
 
+sub setRampRate {
+    my $self = shift;
+    my $rate = shift;
+    return PowerLineModule::setRampRate( $self->{_dimmer}, $rate );
+}
+
+sub setOnLevel {
+	my $self = shift;
+	my $level = shift;
+	return PowerLineModule::setOnLevel( $self->{_dimmer}, $level );
+}
+
 sub startGatherLinkTable {
     my $self = shift;
     return PowerLineModule::startGatherLinkTable( $self->{_dimmer} );

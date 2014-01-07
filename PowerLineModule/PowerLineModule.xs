@@ -225,6 +225,16 @@ setX10Code(dimmer, houseCode, unit)
                 XPUSHs(sv_2mortal(newSViv(RETVAL)));
 
 int
+setRampRate(dimmer, rate)
+	Dimmer dimmer
+	unsigned char rate
+
+int
+setOnLevel(dimmer, level)
+	Dimmer dimmer
+	unsigned char level
+
+int
 enterLinkMode(dimmer, group)
 	Dimmer dimmer
 	unsigned char group
@@ -250,6 +260,18 @@ setKeypadOffMask(keypad, button, mask)
 	Keypad keypad
 	unsigned char button
 	unsigned char mask
+
+int
+setBtnRampRate(keypad, rate, button)
+	Keypad keypad
+	unsigned char rate
+        unsigned char button
+
+int
+setBtnOnLevel(keypad, level, button)
+	Keypad keypad
+	unsigned char level
+	unsigned char button
 
 int
 setNonToggleState(keypad, button, nonToggle)

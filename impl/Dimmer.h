@@ -22,6 +22,8 @@ namespace w5xdInsteon {
         // If none is set, then both houseCode and unit are zero
         int getX10Code(char &houseCode, unsigned char &unit) const { return InsteonDevice::getX10Code(houseCode, unit);}
         int setX10Code(char houseCode, unsigned char unit) {return InsteonDevice::setX10Code(houseCode, unit);}
+        int setRampRate(unsigned char rate)  { return sendExtendedCommand(1, 5, rate); }
+        int setOnLevel(unsigned char level)  { return sendExtendedCommand(1, 6, level);  }
 
         int createLink(InsteonDevice *controller, unsigned char controlGroup,
                                unsigned char brightness, unsigned char ramprate)
