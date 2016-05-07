@@ -74,6 +74,7 @@ public:
     const char * printExtendedGet(unsigned char btn);
     int createModemGroupToMatch(int group);
     bool linktableComplete()const{boost::mutex::scoped_lock l(m_mutex); return m_LinkTableComplete;}
+	void invalidateLinkTable(){boost::mutex::scoped_lock l(m_mutex); m_LinkTableComplete = false;}
 
     // remove links for isController true, or, for false, with matching ls3, or, if ls3 is zero, all values of ls3
     int removeLinks(const InsteonDeviceAddr &addr, unsigned char group, bool amController, unsigned char ls3);

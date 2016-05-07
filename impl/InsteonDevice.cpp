@@ -91,8 +91,6 @@ int InsteonDevice::enterLinkMode(unsigned char group)
     m_plm->sendCommandAndWait(extMsg, sizeof(extMsg), 23); 
     return 1;
 }
-
-
 void InsteonDevice::incomingMessage(const std::vector<unsigned char> &v, boost::shared_ptr<InsteonCommand>)
 {
     {
@@ -302,7 +300,6 @@ int InsteonDevice::createLinkWithModem(unsigned char group, bool amController, I
     return -1;
 }
 
-
 void InsteonDevice::InitExtMsg(unsigned char *extMsg)
 {
     unsigned char init[EXTMSG_COMMAND_LEN] =
@@ -427,6 +424,7 @@ int InsteonDevice::createLinkWithModem(unsigned char group, bool amController,
     }
 
     boost::shared_ptr<InsteonCommand> p = m_plm->sendCommandAndWait(extMsg, sizeof(extMsg), 23); 
+	invalidateLinkTable();
     return p->m_answerState;
 }
 
@@ -470,7 +468,7 @@ int InsteonDevice::createLink(InsteonDevice *responder, unsigned char group,
     extMsg[OFFSET_LINK_FLAG] = 0xaa;  // flag as Responder
     PlaceCheckSum(extMsg);
     p = m_plm->sendCommandAndWait(extMsg, sizeof(extMsg), 23);
-
+	invalidateLinkTable();
     return 1;
 }
 

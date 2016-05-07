@@ -107,23 +107,34 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
     char keypadArg = 0;
     const char *controllerLink = 0;
     const char *controllerUnlink = 0;
+	int plmUnlinkAsController = 0;
     Dimmer controllerU = 0;
     int cLinks = -1;
     int X10Unit = -1;
     char X10Hc = 0;
     int X10 = 0;
     int ls1 = -1, ls2 = -1, ls3 = -1;
+	int groupCommand = -1;
     if (argc < 2)
     {
         fprintf(stderr, "Usage: PlmTest [-r] [-l] [-g grp] [-d x.y.z] [-s value] [-w [tmo]] [-x] [-X] <ComPort>\n");
         fprintf(stderr, 
             " -Reset   Reset modem to factory defaults. All other commands ignored\n"
-            " -l       Start linking process as controller on group grp (default to 254)\n"
-            "          specify -w to hold.\n"
-            "          if -d is also specified, then don't start link, but instead set PLM as controller to -d\n"
             " -r       Start linking process  as responder on group grp.\n"
             "          If -d not specified, then stay in link mode for 4 minutes and exit\n"
             "          If -d is specified, then set link tables so PLM responds to dimmer on group grp\n"
+            " -l       Start linking process as controller on group grp (default to 254)\n"
+            "          specify -w to hold.\n"
+            "          if -d is also specified, then DON'T start link process, but instead set\n"
+			"          PLM as controller to -d x.y.z, on group -g (or next available PLM group if no -g)\n"
+            " -L <x.y.z>\n"
+            "          Links -d as responder, x.y.z as controller on controller group -g\n"
+			" -ls  <ls1> <ls2> <ls3>\n"
+			"          When used with -l or -L specifies the ls1,ls2,ls3 entries (decimal) for the responder.\n"
+            " -U <x.y.z> <ls3>\n"
+            "           Unlinks -d as responder, x.y.z as controller on controller group -g and with ls3 on responder\n"
+			"           If <x.y.z> not specified, then unlinks PLM as controller.\n"
+            "           If -d not specified, then it unlinks PLM as responder.\n"
             " -p       Print modem link table\n"
             " -g <grp> Set group number for -s and -l to grp\n"
             " -d x.y.z Dimmer operations on Insteon address x,y.z\n"
@@ -133,6 +144,8 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
             " -s <value> Command group grp or dimmer to on or off\n"
             "          -1 with -d runs a dimmer test sequence\n"
             "          Any other negative value just retrieves dimmer value\n"
+			" -c <val> \n"
+			"          Send command <val> (normally 17 for ON and 19 for off to group -g\n"
             " -kf <btn> <val>   keypad follow mask\n"
             " -ko <btn> <val>   keypad off mask\n"
             "           for keypad at address -d, and for button number <btn>, set follow mask (off mask)\n"
@@ -146,15 +159,11 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
             "          print its X10 house code if hc unit not specified. Otherwise set X10 house code and unit.\n"
             "          A zero unit clears the X10 code in the device\n"
             " -e [n]   For specified dimmer, print n extended records.\n"
-            " -L <x.y.z> <ls1> <ls2> <ls3>\n"
-            "          Links -d as responder, x.y.z as controller with values ls1, ls2, ls3 on controller group -g\n"
-            " -U <x.y.z> <ls3>\n"
-            "           Unlinks -d as responder, x.y.z as controller on controller group -g and with ls3 on responder\n"
-            "           If -d not specified, then it unlinks PLM as responder.\n"
             " -SBL      Press Set button--Link mode on group -g \n"
             " -m <n>    Set message level to n.\n"
             " --        means read stdin for more commands\n"
             " <ComPort> is required. On Windows COMn, on Linux, /dev/ttyUSBn\n"
+			" #         on command line is not processed, nor anything after it.\n"
             "\n"
             "Copyright (c) 2013 by Wayne Wright, Round Rock, Texas.\n"
             "See license at http://github.com/w5xd/plm/blob/master/LICENSE.md\n"
@@ -166,6 +175,8 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
     {
         if (argv[i][0] != '-')
         {
+			if (argv[i][0] == '#')
+				break;
             if (strlen(modName))
             {
                 fprintf(stderr, "Can only give one modem name but got both %s and %s\n", argv[i], modName);
@@ -196,10 +207,46 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
                     linkGroup = atoi(argv[++i]);
                 break;
             case 'l':
-                cmdStartLink = 1;
-                if (linkGroup < 0) linkGroup = 254; /* set default */
+				if (!argv[i][2])
+				{
+					cmdStartLink = 1;
+					if (linkGroup < 0) linkGroup = 254; /* set default */
+					break;
+				}
+				else if (argv[i][2] == 's')
+				{
+                    if ((i < argc - 1) && isdigit(argv[i+1][0]))
+                    {
+                        ls1 = atoi(argv[++i]);  
+                        if ((i < argc - 1) && isdigit(argv[i+1][0]))
+                        {
+                            ls2 = atoi(argv[++i]);
+                            if ((i < argc - 1) && isdigit(argv[i+1][0]))
+                                ls3 = atoi(argv[++i]);
+                        }
+                    }
+					if ((ls1 < 0) || (ls2 < 0) || (ls3 < 0))
+					{
+						fprintf(stderr, "-ls must specify <n1> <n2> <n3> where n1, n2 and n3 are the numbers for ls1 and ls2 and ls3\n");
+						return 1;
+					}
+					break;
+				}
+				else
+				{
+                    fprintf(stderr, "Unknown switch \"%s\"\n", argv[i]);
+                    return -1;
+				}
+            case 'L':
+                if (i < argc - 1)
+                    controllerLink = argv[++i];
+                if (!controllerLink)
+                {
+                    fprintf(stderr, "-L must specify <link addr>\n");
+                    return 1;
+                }
                 break;
-            case 'r':
+           case 'r':
                 cmdStartLink = -1;
                 if (linkGroup < 0) linkGroup = 254; /* set default */
                 break;
@@ -267,39 +314,26 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
             case 'a':
                 allStuff = 1;
                 break;
-            case 'L':
-                if (i < argc - 1)
-                {
-                    controllerLink = argv[++i];
-                    if ((i < argc - 1) && isdigit(argv[i+1][0]))
-                    {
-                        ls1 = atoi(argv[++i]);  
-                        if ((i < argc - 1) && isdigit(argv[i+1][0]))
-                        {
-                            ls2 = atoi(argv[++i]);
-                            if ((i < argc - 1) && isdigit(argv[i+1][0]))
-                                ls3 = atoi(argv[++i]);
-                        }
-                    }
-                }
-                if (!controllerLink || (ls1 < 0) || (ls2 < 0) || (ls3 < 0))
-                {
-                    fprintf(stderr, "-L must specify <addr> <n1> <n2> <n3> where n1, n2 and n3 are the numbers for ls1 and ls2 and ls3\n");
-                    return 1;
-                }
-                break;
             case 'U':
                 if (i < argc - 1)
                 {
                     controllerUnlink = argv[++i];
-                    if ((i < argc - 1) && isdigit(argv[i+1][0]))
-                    {
-                        ls3 = atoi(argv[++i]);  
-                    }
+					if (strchr(controllerUnlink, '.') != 0)
+					{
+						plmUnlinkAsController = 0;
+						if ((i < argc - 1) && isdigit(argv[i+1][0]))
+							ls3 = atoi(argv[++i]);  
+					}
+					else if (isdigit(controllerUnlink[0]))
+					{
+						ls3 = atoi(controllerUnlink);
+						controllerUnlink = 0;
+						plmUnlinkAsController = 1;
+					}
                 }
-                if (!controllerUnlink || (ls3 < 0))
+                if ((!controllerUnlink && !plmUnlinkAsController) || (ls3 < 0))
                 {
-                    fprintf(stderr, "-U must specify addr n1 where n1 is the number for ls3\n");
+                    fprintf(stderr, "-U must specify [addr] <n1> where n1 is the number for ls3\n");
                     return 1;
                 }
                 break;
@@ -333,6 +367,17 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
                 }
                 fprintf(stderr, "unregcognized comand argument %s\n", argv[i]);
                 return -1;
+			case 'c':
+				if ((i < argc - 1) && isdigit(argv[i+1][0]))
+				{
+					groupCommand = atoi(argv[++i]);
+					break;
+				}
+				else
+				{
+					fprintf(stderr, "-c must be followed by <val> 17 for ON, 19 for OFF\n");
+					return 1;
+				}
             default:
                 fprintf(stderr, "unrecognized command line argument %s\n", argv[i]);
                 return -1;
@@ -370,9 +415,9 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
         return 1;
     }
 
-    if (controllerUnlink && (linkGroup < 0))
+	if ((controllerUnlink || plmUnlinkAsController) && (!dimmerAddr || (linkGroup < 0)))
     {
-        fprintf(stderr, "With -U, must also specify -g \n");
+        fprintf(stderr, "With -U, must also specify -g and -d \n");
         return 1;
     }
 
@@ -450,13 +495,6 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
         dimmer = (Dimmer)fanlinc;
     }
 
-    if (allStuff)
-    {
-        if (dimmerAddr)
-        {
-        }
-    }
-
     if (cmdStartLink > 0)
     {
         if (!dimmerAddr)
@@ -467,7 +505,27 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
             return 0;
         }
         else
-            linkPlm(dimmer, 0, linkGroup, 0, 0, 2);
+		{
+            if (linkGroup == 254 || linkGroup <= 0)
+			{
+				getModemLinkRecords(m);
+                linkGroup = getNextUnusedControlGroup(m);
+			}
+			{
+				int num = 0;
+				startGatherLinkTable(dimmer);
+				num = getNumberOfLinks(dimmer);
+				if (num < 0)
+				{
+					fprintf(stderr, "Failed to get number of links for dimmer: %s\n", dimmerAddr);
+					return 1;
+				}
+			}
+			linkPlm(dimmer, 0, linkGroup, 
+				ls1 > 0 ? ls1 : 0, 
+				ls2 > 0 ? ls2 : 0, 
+				ls3 > 0 ? ls3 : 2);
+		}
     }
     else if (cmdStartLink < 0)
     {
@@ -569,7 +627,10 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
         if (createLinks)
         {
             if (linkGroup <= 0)
+			{
+				getModemLinkRecords(m);
                 linkGroup = getNextUnusedControlGroup(m);
+			}
             createModemGroupToMatch(linkGroup, dimmer);
             printf("Created link group for dimmer %s on group %d\n", dimmerAddr, linkGroup);
         }
@@ -578,6 +639,10 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
             linkPlm(dimmer, 1, (unsigned char)linkGroup, 0, 0, 2);
             SLEEP(1);
         }
+		else if (plmUnlinkAsController)
+		{
+			unLinkPlm(dimmer, 0, (unsigned char)linkGroup, ls3);
+		}
         else
         {
             int v;
@@ -622,6 +687,11 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
                 fprintf(stderr, "Dimmer address %s is invalid\n", controllerLink);
                 return 1;
             }
+			if (ls3 < 0)
+			{
+				fprintf(stderr, "With -L must also specify -ls\n");
+				return 1;
+			}
             {
                 int cLinks, v, rLinks;
                 if (!printDimmerLinks)
@@ -681,6 +751,9 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
             ret = enterLinkMode(dimmer, (unsigned char)linkGroup);
         }
     }
+
+	if (groupCommand > 0)
+		setAllDevices(m, linkGroup, groupCommand);
 
 #if 1
     SLEEP(*waitSeconds);
