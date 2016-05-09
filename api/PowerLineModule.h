@@ -2,6 +2,7 @@
 ** See license at http://github.com/w5xd/plm/blob/master/LICENSE.md */
 #ifndef MOD_W5XDINSTEON_POWERLINEMODULE_H
 #define MOD_W5XDINSTEON_POWERLINEMODULE_H
+#include "X10Commands.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -135,6 +136,10 @@ extern "C" {
     POWERLINE_DLL_ENTRY(Fanlinc) getFanlincAccess(Modem modem, const char *addr);
     POWERLINE_DLL_ENTRY(int) setFanSpeed(Fanlinc fanlinc, unsigned char speed);
     POWERLINE_DLL_ENTRY(int) getFanSpeed(Fanlinc fanlinc);
+
+	/* X10 commands */
+	/* unitMask 0 is no units. LSB is unit #1. MSB is unit #16. command is sent to all units with mask bit set*/
+    POWERLINE_DLL_ENTRY(int) sendX10Command(Modem modem, char houseCode, unsigned short unitMask, enum X10Commands_t command);
 
 #ifdef __cplusplus
 }

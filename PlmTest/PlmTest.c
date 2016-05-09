@@ -113,6 +113,8 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
     int X10Unit = -1;
     char X10Hc = 0;
     int X10 = 0;
+	int X10Command = -1;
+	short X10UnitMask = 0;
     int ls1 = -1, ls2 = -1, ls3 = -1;
 	int groupCommand = -1;
     if (argc < 2)
@@ -158,6 +160,17 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
             " -X10 [hc unit] for the dimmer -d,\n"
             "          print its X10 house code if hc unit not specified. Otherwise set X10 house code and unit.\n"
             "          A zero unit clears the X10 code in the device\n"
+			" -x10 hc mask command\n"
+			"          Send X10 hc ranges from A through P\n"
+			"          mask is HEX. 0 is no units. and LSB is unit 1 MSB is unit 16\n"
+            "          command: \n"
+			"              0 = all units off\n"
+			"              1 = all lights on\n"
+			"              2 = unit ON\n"
+			"              3 = unit OFF\n"
+			"              4 = unit DIM\n"
+			"              5 = unit BRIGHT\n"
+			"              6 = all lights off\n"
             " -e [n]   For specified dimmer, print n extended records.\n"
             " -SBL      Press Set button--Link mode on group -g \n"
             " -m <n>    Set message level to n.\n"
@@ -290,8 +303,46 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
                     *waitSeconds = atoi(argv[++i]);                
                 break;
             case 'x':
-                createLinks = 1;
-                break;
+				if (strcmp(argv[i], "-x") == 0)
+				{
+					createLinks = 1;
+					break;
+				}
+				else if (strcmp(argv[i], "-x10") == 0)
+				{
+					X10UnitMask = 0;
+					X10Command = -1;
+					if ((i < argc - 1) && argv[i+1][0] != '-')
+					{
+                        X10Hc = toupper(argv[++i][0]);
+						if ((i < argc - 1) && argv[i+1][0] != '-')
+						{
+							const char *pHex = argv[++i];
+							if (strncmp(pHex, "0x", 2) == 0 ||
+								strncmp(pHex, "0X", 2) == 0)
+								pHex += 2;
+							while (*pHex)
+							{
+								char next = *pHex++;
+								if (isalpha(next))
+									next = toupper(next);
+								X10UnitMask <<= 4;
+								if ((next >= '0') && (next <= '9'))
+									X10UnitMask += next - '0';
+								else if ((next >= 'A') && (next <= 'F'))
+									X10UnitMask += 10 + next - 'A';
+								else break;
+							}
+							if (!*pHex && i < argc - 1 && argv[i+1][0] != '-')
+							{
+								X10Command = atoi(argv[++i]) % 7;
+								break;
+							}
+						}
+					}
+				}
+                fprintf(stderr, "command option %s invalid\n", argv[i]);
+                return 1;
             case 'X':
                 if (strcmp(argv[i], "-X") == 0)
                     deleteLinks = 1;
@@ -435,11 +486,17 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
         return 1;
     }
 
-    if ((X10 || X10Hc) && !dimmerAddr)
+    if ((X10 || (X10Hc && (X10Command < 0))) && !dimmerAddr)
     {
         fprintf(stderr, "With -X10 must specify -d\n");
         return 1;
     }
+
+	if ((X10Command >= 0) && dimmerAddr)
+	{
+		fprintf(stderr, "With -x10 must not specifiy -d\n");
+		return 1;
+	}
 
     if (X10 && !printExtRecords)
         printExtRecords = 1;
@@ -734,6 +791,9 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
         int v = unLinkPlm(controllerU, 1, (unsigned char) linkGroup, 0);
         fprintf(stderr, "unLinkAsControll completed %d\n", v);
     }
+	else if (X10Command >= 0)
+			sendX10Command(m, X10Hc, X10UnitMask, (enum X10Commands_t)(X10Command));
+
 
 
     if (deleteLinks)

@@ -325,3 +325,9 @@ POWERLINE_DLL_ENTRY(int) getFanSpeed(Fanlinc fanlinc)
     return reinterpret_cast<w5xdInsteon::Fanlinc *>(fanlinc)->getFanSpeed();
 }
 
+POWERLINE_DLL_ENTRY(int) sendX10Command(Modem m, char houseCode, unsigned short unitMask, enum X10Commands_t command)
+{
+    if (!m) return 0;
+    return reinterpret_cast<w5xdInsteon::PlmMonitor *>(m)->sendX10Command(houseCode, unitMask, command);
+}
+

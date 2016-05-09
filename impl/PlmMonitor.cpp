@@ -1083,6 +1083,28 @@ int PlmMonitor::setFastIfLinked(InsteonDevice *d, int v)
     return -1;
 }
 
+int PlmMonitor::sendX10Command(char houseCode, unsigned short unitMask, enum X10Commands_t command)
+{
+	// X10 protocol:
+	// have to send a message to select each unit
+    unsigned char buf[4] = {0x02, 0x63, 0, 0};
+	unsigned char hc = InsteonDevice::X10HouseLetterToBits[(houseCode - 'A') & 0xF] << 4;;
+	unsigned char mask = 1;
+	for (int i = 0; i < 16; i++)
+	{
+		if (unitMask & mask)
+		{
+			buf[2] = (InsteonDevice::X10WheelCodeToBits[i+1] >> 1) | hc;
+			queueCommand(buf, sizeof(buf), 5);
+		}
+		mask <<= 1;
+	}
+	buf[3] = 0x80;
+	buf[2] = hc | static_cast<unsigned char>(command);
+    queueCommand(buf, sizeof(buf), 5);
+	return 1;
+}
+
 const char * PlmMonitor::printModemLinkTable() 
 {
     boost::mutex::scoped_lock l(m_mutex);

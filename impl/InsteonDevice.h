@@ -90,6 +90,10 @@ public:
     int getProductData();
 
     int enterLinkMode(unsigned char group);
+    static const char X10HouseCodeToLetter[16];
+    static const char X10HouseLetterToBits[16];//subtract 'A' from letter to index into this table
+    static const char X10WheelCodeToBits[17]; // wheel codes 1 through 16 are valid
+    static const char X10BitsToWheelCode[16]; // shift right 1 bit position to index into this table
 protected:
     enum {OFFSET_TO_ADDR = 2, 
             OFFSET_FLAG = 5,
@@ -135,10 +139,6 @@ protected:
     typedef std::map<unsigned char, std::vector<unsigned char> > ExtendedGetResults_t;
     ExtendedGetResults_t m_ExtendedGetResult;
     std::vector<unsigned char> m_productData;
-    static const char X10HouseCodeToLetter[16];
-    static const char X10HouseLetterToBits[16];//subtract 'A' from letter to index into this table
-    static const char X10WheelCodeToBits[17]; // wheel codes 1 through 16 are valid
-    static const char X10BitsToWheelCode[16]; // shift right 1 bit position to index into this table
     int m_incomingMessageCount;
 private:
     bool m_LinkTableComplete;

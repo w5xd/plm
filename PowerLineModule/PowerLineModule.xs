@@ -5,6 +5,7 @@
 #include "ppport.h"
 
 #include <../api/PowerLineModule.h>
+#include <../api/X10Commands.h>
 
 #include "const-c.inc"
 
@@ -166,6 +167,16 @@ setAllDevices(modem, g, v)
 	Modem modem
 	unsigned char	g
 	unsigned char	v
+
+int
+sendX10Command(modem, houseCode, unitMask, x10Command)
+	Modem modem
+	char *houseCode
+	unsigned unitMask
+        unsigned x10Command
+	PPCODE:
+	    RETVAL = sendX10Command(modem, houseCode[0], unitMask, (enum X10Commands_t)x10Command);
+            XPUSHs(sv_2mortal(newSViv(RETVAL)));
 
 int
 getNumberOfLinks(dimmer)

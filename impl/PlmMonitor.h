@@ -12,6 +12,7 @@
 #include <boost/thread.hpp>
 #include <boost/function.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
+#include "../api/X10Commands.h"
 
 namespace w5xdInsteon {
     class Dimmer;
@@ -85,6 +86,8 @@ namespace w5xdInsteon {
         {return getDeviceAccess<Keypad>(addr);}
         Fanlinc *getFanlincAccess(const char *addr)
         {return getDeviceAccess<Fanlinc>(addr);}
+
+		int sendX10Command(char houseCode, unsigned short unitMask, enum X10Commands_t command);
 
         boost::shared_ptr<InsteonCommand> 
             queueCommand(const unsigned char *v, unsigned s, unsigned resLen, bool retry = true, InsteonCommand::CompletionCb_t fcn=0);

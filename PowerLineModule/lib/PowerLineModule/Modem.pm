@@ -137,6 +137,14 @@ sub cancelLinking {
    return PowerLineModule::cancelLinking( $self->{_modem} );
 }
 
+sub sendX10Command {
+    my $self = shift;
+    my $houseCode = shift;
+    my $unitMask = shift;
+    my $x10Command = shift;
+    return PowerLineModule::sendX10Command( $self->{_modem}, $houseCode, $unitMask, $x10Command );
+}
+
 #NOTE: when called by threads->create the Modem object is COPIED, as are
 #the Dimmer's and Keypad's that it references. So get___Access() functions
 #all have to be called before thread->create(). 
