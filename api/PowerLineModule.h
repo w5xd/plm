@@ -21,6 +21,7 @@ extern "C" {
     typedef struct Dimm_t *Dimmer;
     typedef struct Keypad_t *Keypad;
     typedef struct Fanlinc_t *Fanlinc;
+	typedef struct X10Dimm_t *X10Dimmer;
 
     /* commPortName 
     ** on Windows, must be COMn where n is a number
@@ -140,6 +141,10 @@ extern "C" {
 	/* X10 commands */
 	/* unitMask 0 is no units. LSB is unit #1. MSB is unit #16. command is sent to all units with mask bit set*/
     POWERLINE_DLL_ENTRY(int) sendX10Command(Modem modem, char houseCode, unsigned short unitMask, enum X10Commands_t command);
+    /* get dimmer access by dimmer hardware address houseCode ranges from 'A' to 'P'. unit from 1 to 16*/
+    POWERLINE_DLL_ENTRY(X10Dimmer) getX10DimmerAccess(Modem modem, char houseCode, unsigned char unit);
+    /* given a dimmer, set it */
+    POWERLINE_DLL_ENTRY(int) setX10DimmerValue(X10Dimmer dimmer, unsigned char v);
 
 #ifdef __cplusplus
 }

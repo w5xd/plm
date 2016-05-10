@@ -42,7 +42,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="&quot;$(SolutionDir)\api&quot;;D:\boost\boost_1_52_0"
+				AdditionalIncludeDirectories="D:\boost\boost_1_58_0;&quot;$(SolutionDir)api&quot;"
 				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE;W5XDINSTEON_EXPORTS"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
@@ -63,7 +63,7 @@
 			<Tool
 				Name="VCLinkerTool"
 				LinkIncremental="2"
-				AdditionalLibraryDirectories="D:\boost\boost_1_52_0\stage\lib"
+				AdditionalLibraryDirectories="D:\boost\boost_1_58_0\stage\lib"
 				GenerateDebugInformation="true"
 				SubSystem="1"
 				TargetMachine="1"
@@ -118,7 +118,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="2"
 				EnableIntrinsicFunctions="true"
-				AdditionalIncludeDirectories="&quot;$(SolutionDir)\api&quot;;D:\boost\boost_1_52_0"
+				AdditionalIncludeDirectories="D:\boost\boost_1_58_0;&quot;$(SolutionDir)api&quot;"
 				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE;W5XDINSTEON_EXPORTS"
 				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"
@@ -138,7 +138,7 @@
 			<Tool
 				Name="VCLinkerTool"
 				LinkIncremental="1"
-				AdditionalLibraryDirectories="D:\boost\boost_1_52_0\stage\lib"
+				AdditionalLibraryDirectories="D:\boost\boost_1_58_0\stage\lib"
 				GenerateDebugInformation="true"
 				SubSystem="1"
 				OptimizeReferences="2"
@@ -180,6 +180,10 @@
 			</File>
 			<File
 				RelativePath="..\api\PowerLineModule.h"
+				>
+			</File>
+			<File
+				RelativePath="..\api\X10Commands.h"
 				>
 			</File>
 		</Filter>
@@ -262,6 +266,14 @@
 			</File>
 			<File
 				RelativePath=".\PlmMonitorWin.h"
+				>
+			</File>
+			<File
+				RelativePath=".\X10Dimmer.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\X10Dimmer.h"
 				>
 			</File>
 		</Filter>

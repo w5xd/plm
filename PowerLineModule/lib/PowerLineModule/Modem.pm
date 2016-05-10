@@ -10,6 +10,7 @@ require PowerLineModule;
 require PowerLineModule::Dimmer;
 require PowerLineModule::Keypad;
 require PowerLineModule::Fanlinc;
+require PowerLineModule::X10Dimmer;
 
 sub new {
     my $class = shift;
@@ -77,6 +78,20 @@ sub getDimmer {
 	return $ret;
     }
     else { return 0; }
+}
+
+sub getX10Dimmer {
+    my $self = shift;
+    my $hc = shift;
+    my $unit = shift;
+    my $dimmer = PowerLineModule::getX10DimmerAccess( $self->{_modem}, $hc, $unit);
+    if ($dimmer != 0) {
+	my $ret = $self->{_dimmerHas}->{$dimmer};
+	if (defined($ret)) { return $ret; }
+	$ret = PowerLineModule::X10Dimmer->new($dimmer);
+	$self->{_dimmerHash}->{$dimmer} = $ret;
+	return $ret;
+     } else { return 0; }
 }
 
 sub getKeypad {

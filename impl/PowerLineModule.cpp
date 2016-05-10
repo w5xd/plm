@@ -6,6 +6,7 @@
 #include "../impl/Dimmer.h"
 #include "../impl/Keypad.h"
 #include "../impl/Fanlinc.h"
+#include "../impl/X10Dimmer.h"
 
 /***********************************************************************
 **C callable entry points
@@ -331,3 +332,15 @@ POWERLINE_DLL_ENTRY(int) sendX10Command(Modem m, char houseCode, unsigned short 
     return reinterpret_cast<w5xdInsteon::PlmMonitor *>(m)->sendX10Command(houseCode, unitMask, command);
 }
 
+POWERLINE_DLL_ENTRY(X10Dimmer) getX10DimmerAccess(Modem m, char houseCode, unsigned char unit)
+{
+    if (!m) return 0;
+    return reinterpret_cast<X10Dimmer>(
+		reinterpret_cast<w5xdInsteon::PlmMonitor *>(m)->getX10DimmerAccess(houseCode, unit));
+}
+
+POWERLINE_DLL_ENTRY(int) setX10DimmerValue(X10Dimmer dimmer, unsigned char v)
+{
+    if (!dimmer) return 0;
+    return reinterpret_cast<w5xdInsteon::X10Dimmer *>(dimmer)->setDimmerValue(v);
+}

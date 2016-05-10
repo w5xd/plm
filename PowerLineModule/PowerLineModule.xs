@@ -329,3 +329,16 @@ int setFanSpeed(fanlinc, speed)
 int getFanSpeed(fanlinc)
 	Fanlinc fanlinc
 
+X10Dimmer getX10DimmerAccess(modem, houseCode, unit)
+        Modem modem
+	char *houseCode
+	unsigned char unit
+	PPCODE:
+		RETVAL = getX10DimmerAccess(modem, houseCode[0], unit);
+                XPUSHs(sv_2mortal(newSViv((IV)RETVAL)));
+
+int
+setX10DimmerValue(dimmer, v)
+	X10Dimmer dimmer
+	unsigned char	v
+

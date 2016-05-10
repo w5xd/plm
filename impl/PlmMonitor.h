@@ -16,6 +16,8 @@
 
 namespace w5xdInsteon {
     class Dimmer;
+	class X10Dimmer;
+	class X10DimmerCollection;
     class Keypad;
     class Fanlinc;
     class InsteonDevice;
@@ -86,6 +88,7 @@ namespace w5xdInsteon {
         {return getDeviceAccess<Keypad>(addr);}
         Fanlinc *getFanlincAccess(const char *addr)
         {return getDeviceAccess<Fanlinc>(addr);}
+		X10Dimmer *getX10DimmerAccess(char houseCode, unsigned char unit);
 
 		int sendX10Command(char houseCode, unsigned short unitMask, enum X10Commands_t command);
 
@@ -150,7 +153,12 @@ namespace w5xdInsteon {
         int m_nextCommandId;
         boost::posix_time::ptime    m_startupTime;
         InsteonDeviceSet_t  m_insteonDeviceSet;
+
         std::deque<InsteonDevicePtr>  m_retiredDevices;
+
+		// X10 devices
+		boost::shared_ptr<X10DimmerCollection> m_X10Dimmers;
+
         bool m_haveAllModemLinks;
         typedef std::vector<InsteonLinkEntry> LinkTable_t;
         LinkTable_t  m_ModemLinks;

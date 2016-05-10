@@ -6,6 +6,7 @@
 #include <boost/bind.hpp>
 #include "PlmMonitor.h"
 #include "Dimmer.h"
+#include "X10Dimmer.h"
 #include "Fanlinc.h"
 #include "Keypad.h"
 
@@ -50,6 +51,20 @@ void bufferToStream(std::ostream &st, const unsigned char *v, int s)
     }
 }
 
+namespace {
+	struct compPtr {
+			bool operator()(const boost::shared_ptr<X10Dimmer> &A,
+				const boost::shared_ptr<X10Dimmer> &B) const
+			{
+				if (!A || !B)
+					return A < B;
+				return *A.get() < *B.get();
+			}
+		};
+}
+
+class X10DimmerCollection : public std::set<boost::shared_ptr<X10Dimmer>, compPtr> {};
+
 void PlmMonitor::timeStamp(std::ostream &st)
 {
     boost::posix_time::ptime now(boost::posix_time::microsec_clock::universal_time());
@@ -74,7 +89,8 @@ PlmMonitor::PlmMonitor(const char *commPortName, const char *logFileName) :
     m_haveAllModemLinks(false), 
     m_nextCommandId(0),
     m_queueNotifications(false),
-    m_commandDelayMsec(COMMAND_DELAY_MSEC)
+    m_commandDelayMsec(COMMAND_DELAY_MSEC),
+	m_X10Dimmers(new X10DimmerCollection())
 {
     if (logFileName && *logFileName)
         m_errorFile.open(logFileName, std::ofstream::out | std::ofstream::app);
@@ -832,6 +848,17 @@ T *PlmMonitor::getDeviceAccess(const unsigned char addr[3])
     return dynamic_cast<T *>(v.get());
 }
 
+X10Dimmer *PlmMonitor::getX10DimmerAccess(char houseCode, unsigned char wheelCode)
+{
+    boost::mutex::scoped_lock l(m_mutex);
+	boost::shared_ptr<X10Dimmer> dimmer(new X10Dimmer(this, houseCode, wheelCode));
+	X10DimmerCollection::iterator itor = m_X10Dimmers->find(dimmer);
+	if (itor == m_X10Dimmers->end())
+		m_X10Dimmers->insert(dimmer);
+	else
+		dimmer = *itor;
+	return dimmer.get();
+}
 
 int PlmMonitor::startLinking(int group, bool multiple)
 {
@@ -1087,7 +1114,7 @@ int PlmMonitor::sendX10Command(char houseCode, unsigned short unitMask, enum X10
 {
 	// X10 protocol:
 	// have to send a message to select each unit
-    unsigned char buf[4] = {0x02, 0x63, 0, 0};
+	unsigned char buf[4] = {0x02, 0x63, 0, 0};
 	unsigned char hc = InsteonDevice::X10HouseLetterToBits[(houseCode - 'A') & 0xF] << 4;;
 	unsigned char mask = 1;
 	for (int i = 0; i < 16; i++)
@@ -1101,7 +1128,7 @@ int PlmMonitor::sendX10Command(char houseCode, unsigned short unitMask, enum X10
 	}
 	buf[3] = 0x80;
 	buf[2] = hc | static_cast<unsigned char>(command);
-    queueCommand(buf, sizeof(buf), 5);
+	queueCommand(buf, sizeof(buf), 5);
 	return 1;
 }
 
