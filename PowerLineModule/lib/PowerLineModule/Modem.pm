@@ -86,7 +86,7 @@ sub getX10Dimmer {
     my $unit = shift;
     my $dimmer = PowerLineModule::getX10DimmerAccess( $self->{_modem}, $hc, $unit);
     if ($dimmer != 0) {
-	my $ret = $self->{_dimmerHas}->{$dimmer};
+	my $ret = $self->{_dimmerHash}->{$dimmer};
 	if (defined($ret)) { return $ret; }
 	$ret = PowerLineModule::X10Dimmer->new($dimmer);
 	$self->{_dimmerHash}->{$dimmer} = $ret;
