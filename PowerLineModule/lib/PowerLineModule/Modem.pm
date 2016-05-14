@@ -8,6 +8,7 @@ use strict;
 use warnings;
 require PowerLineModule;
 require PowerLineModule::Dimmer;
+require PowerLineModule::Relay;
 require PowerLineModule::Keypad;
 require PowerLineModule::Fanlinc;
 require PowerLineModule::X10Dimmer;
@@ -119,6 +120,20 @@ sub getFanlinc {
     }
     else { return 0; }
 }
+
+sub getRelay {
+    my $self = shift;
+    my $relay = PowerLineModule::getDimmerAccess( $self->{_modem}, shift );
+    if ( $relay != 0 ) {
+	my $ret = $self->{_dimmerHash}->{$relay};
+	if (defined($ret)) { return $ret; }
+        $ret = PowerLineModule::Relay->new($relay);
+	$self->{_dimmerHash}->{$relay} = $ret;
+	return $ret;
+    }
+    else { return 0; }
+}
+
 sub getModemLinkRecords {
     my $self = shift;
     return PowerLineModule::getModemLinkRecords( $self->{_modem} );
