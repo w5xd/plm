@@ -7,7 +7,7 @@ namespace w5xdInsteon {
     class PlmMonitorLinux
 {
 public:
-        PlmMonitorLinux(const char *commPortName);
+        PlmMonitorLinux(const char *commPortName, unsigned baudrate);
         ~PlmMonitorLinux();
         int OpenCommPort();
         bool Read(unsigned char *, unsigned, unsigned *);
@@ -16,9 +16,10 @@ public:
 protected:
         const std::string m_commPortName;
         int  m_CommPortFD;
+        unsigned m_BaudRate;
 };
 
-class PlmMonitorIO : public PlmMonitorLinux { public: PlmMonitorIO(const char *c) : PlmMonitorLinux(c){}};
+class PlmMonitorIO : public PlmMonitorLinux { public: PlmMonitorIO(const char *c, unsigned baudrate = 19200) : PlmMonitorLinux(c, baudrate){}};
 }
 #endif
 

@@ -9,9 +9,10 @@
 #include "PlmMonitorLinux.h"
 
 namespace w5xdInsteon {
-PlmMonitorLinux::PlmMonitorLinux(const char *commPortName) : 
+PlmMonitorLinux::PlmMonitorLinux(const char *commPortName, unsigned baudrate) : 
     m_commPortName(commPortName),
-    m_CommPortFD(-1)
+    m_CommPortFD(-1),
+    m_BaudRate(baudrate)
 {}
 
 PlmMonitorLinux::~PlmMonitorLinux()
@@ -37,7 +38,40 @@ bool PlmMonitorLinux::Read(unsigned char *rbuf, unsigned sizeToRead, unsigned *n
 {
 	struct termios newtio;
 	tcgetattr(m_CommPortFD,&newtio);
-	newtio.c_cflag = B19200 | CS8 | CLOCAL | CREAD;
+	newtio.c_cflag =  CS8 | CLOCAL | CREAD;
+    switch (m_BaudRate)
+    {
+    case 1200:
+        newtio.c_cflag |= B1200;
+        break;
+    case 1800:
+        newtio.c_cflag |= B1800;
+        break;
+    case 2400:
+        newtio.c_cflag |= B2400;
+        break;
+    case 4800:
+        newtio.c_cflag |= B4800;
+        break;
+    case 9600:
+        newtio.c_cflag |= B9600;
+        break;
+    case 19200:
+        newtio.c_cflag |= B19200;
+        break;
+    case 38400:
+        newtio.c_cflag |= B38400;
+        break;
+    case 57600:
+        newtio.c_cflag |= B57600;
+        break;
+    case 115200:
+        newtio.c_cflag |= B115200;
+        break;
+    default:
+        newtio.c_cflag |= B9600;
+        break;
+    }
 	newtio.c_iflag = IGNBRK | IGNPAR;
 	newtio.c_oflag = ONLRET | ONOCR;
 	newtio.c_lflag = 0;

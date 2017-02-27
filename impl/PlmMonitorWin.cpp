@@ -2,8 +2,9 @@
 ** See license at http://github.com/w5xd/plm/blob/master/LICENSE.md */
 #include "PlmMonitorWin.h"
 namespace w5xdInsteon {
-PlmMonitorWin::PlmMonitorWin(const char *commPortName) : 
+PlmMonitorWin::PlmMonitorWin(const char *commPortName, unsigned baudrate) : 
     m_commPortName(commPortName),
+    m_BaudRate(baudrate),
     m_CommPort(INVALID_HANDLE_VALUE)
 {
 }
@@ -29,7 +30,7 @@ int PlmMonitorWin::OpenCommPort()
     DCB Dcb;
 	memset(&Dcb, 0, sizeof(Dcb));
 	Dcb.DCBlength = sizeof(Dcb);
-	Dcb.BaudRate = 19200;
+	Dcb.BaudRate = m_BaudRate;
 	Dcb.StopBits = ONESTOPBIT;
 	Dcb.Parity = NOPARITY;
 	Dcb.fParity = 0;
