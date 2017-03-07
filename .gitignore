@@ -1,6 +1,7 @@
 *.ncb
 *.suo
 *.swp
+*.*sdf
 *.user
 *.7z
 *.o
