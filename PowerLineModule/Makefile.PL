@@ -1,11 +1,16 @@
 use 5.010001;
 use ExtUtils::MakeMaker;
+use ExtUtils::MakeMaker::Config;
 
 my $LocalLibArgs;
 my $LocalDefineArgs;
 
 if ($^O =~ /win/i ) {
-    $LocalLibArgs = "-L../Release";
+    if ($Config{ccflags} =~ /win64/i) { # perl built WIN64? 
+       $LocalLibArgs = "-L../x64/Release";
+    } else {
+       $LocalLibArgs = "-L../Release";
+    }
     $LocalDefineArgs = '-DWIN32';
 } else {
     $LocalLibArgs = "-L../lib";
