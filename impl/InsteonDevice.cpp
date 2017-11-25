@@ -91,13 +91,13 @@ int InsteonDevice::enterLinkMode(unsigned char group)
     m_plm->sendCommandAndWait(extMsg, sizeof(extMsg), 23); 
     return 1;
 }
+
 void InsteonDevice::incomingMessage(const std::vector<unsigned char> &v, boost::shared_ptr<InsteonCommand>)
 {
     {
         boost::mutex::scoped_lock l(m_mutex);
         m_incomingMessageCount += 1;
     }
-    static const unsigned char ack[3] = {0x02, PlmMonitor::SET_ACQ_MSG_BYTE, 0};
     if (v.size() >= 25)
     {
         static const unsigned char StartExtended[] = { 0x2, 0x51};
@@ -173,11 +173,13 @@ void InsteonDevice::incomingMessage(const std::vector<unsigned char> &v, boost::
             if (m_plm->m_verbosity >= PlmMonitor::MESSAGE_ON)
                 dumpFlags(m_plm->cerr(), v);
 
-            if ((v[FLAG_BYTE] & 0xF0) == GROUP_BIT)
+            unsigned char flagbyte = 0xF0 & v[FLAG_BYTE];
+            if (flagbyte == GROUP_BIT)
             { // acq this group clean-up message
-               m_plm->queueCommand(ack, sizeof(ack), 4, false); 
+                static const unsigned char SetAcqMsg[3] = { 0x02, PlmMonitor::SET_ACQ_MSG_BYTE, 0 };
+                m_plm->queueCommand(SetAcqMsg, sizeof(SetAcqMsg), 4, false);
             }
-            else if ((v[FLAG_BYTE] & 0xF0) == ACK_BIT)
+            else if (flagbyte == ACK_BIT)
             {
                 boost::mutex::scoped_lock l(m_mutex);
                 m_lastAcqCommand1 = v[COMMAND1];

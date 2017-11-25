@@ -89,7 +89,7 @@ bool PlmMonitorLinux::Read(unsigned char *rbuf, unsigned sizeToRead, unsigned *n
     return res >= 0;  // true is success
 }
 
-bool PlmMonitorLinux::Write(unsigned char *v, unsigned s)
+bool PlmMonitorLinux::Write(const unsigned char *v, unsigned s)
 {
     int res = ::write(m_CommPortFD, v, s);
     return true;

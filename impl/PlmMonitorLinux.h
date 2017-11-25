@@ -11,7 +11,7 @@ public:
         ~PlmMonitorLinux();
         int OpenCommPort();
         bool Read(unsigned char *, unsigned, unsigned *);
-        bool Write(unsigned char *, unsigned);
+        bool Write(const unsigned char *, unsigned);
         const std::string &commPortName()const {return m_commPortName;}
 protected:
         const std::string m_commPortName;

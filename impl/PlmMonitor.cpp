@@ -173,6 +173,14 @@ boost::shared_ptr<InsteonCommand> PlmMonitor::queueCommand(
             m_writeQueue.insert(itor.base(), p);
         }
     }
+
+    if (m_verbosity >= static_cast<int>(MESSAGE_EVERY_IO))
+    {
+        timeStamp(cerr());
+        cerr() << "PlmMonitor::queueCommand " ;
+        bufferToStream(cerr(), &p->m_command[0], p->m_command.size());
+        cerr() << std::endl;
+    }
     return p;
 }
         
@@ -387,6 +395,7 @@ void PlmMonitor::ioThread()
                 lastCharDiscarded = *curMessage.begin();
                 curMessage.erase(curMessage.begin()); // discard until in sync
             }
+
             if (charsDiscarded && (m_verbosity >= static_cast<int>(MESSAGE_ON)))
                 cerr() << "PlmMonitor::ioThread discarded " << std::dec << charsDiscarded << " characters ending with 0x" << 
                 std::hex << lastCharDiscarded << std::endl;
@@ -514,8 +523,8 @@ void PlmMonitor::ioThread()
                     if (p->m_whenDone)  p->m_whenDone(p.get());
                     p.reset();
                 }
-                else
-                {
+                else 
+                {   // answer is not adequate
                     if (m_verbosity >= static_cast<int>(MESSAGE_ON))
                     {
                         timeStamp(cerr());
@@ -531,7 +540,7 @@ void PlmMonitor::ioThread()
                 }
             }
             else        
-            {
+            {   // is not an answer to our command
 		        if (m_verbosity >= static_cast<int>(MESSAGE_ON))
 		        {
                     timeStamp(cerr());
@@ -549,9 +558,10 @@ void PlmMonitor::ioThread()
                         cerr() << "Delaying previously dequeued p" << std::endl;
                 }
                 deliverfromRemoteMessage(msg, lastCommandAcqed);
+                curMessage.clear();
             }
         }
-        else if (!p)    // only look for commands if nothing read from modem
+        if (curMessage.empty() && !p)    // only look for commands if nothing pending from modem
         {
             if (leftOver.empty() && (--delayDequeue <= 0)) 
             {// check for commands to write to modem
@@ -575,30 +585,8 @@ void PlmMonitor::ioThread()
             }
             if (p)
             {
-                p->m_timesSent += 1;
-                if (m_verbosity >= static_cast<int>(MESSAGE_ON))
-                {
-                    timeStamp(cerr());
-                    cerr() << "Writing command " << std::dec << p->m_globalId << " ";
-                    bufferToStream(cerr(), &p->m_command[0], p->m_command.size());
-                    cerr() << std::endl;
-                }
                 timeOfLastIncomingMessage = boost::posix_time::microsec_clock::universal_time();
-                if (!m_io->Write(&p->m_command[0], p->m_command.size()))
-                {   // fail now if failed to write
-                    {
-                        boost::mutex::scoped_lock l(m_mutex);
-                        p->m_answerState = -5;
-                        m_condition.notify_all();
-                    }
-                    if (p->m_whenDone) p->m_whenDone(p.get());
-                    p.reset();
-                    if (m_verbosity >= static_cast<int>(MESSAGE_ON))
-                    {
-                        timeStamp(cerr());
-                        cerr() << "Write failed" << std::endl;
-                    }
-                }
+                writeCommand(p);
             }
         }
         if (p)
@@ -781,6 +769,33 @@ void PlmMonitor::deliverfromRemoteMessage(boost::shared_ptr<std::vector<unsigned
             }
         }
         break;
+    }
+}
+
+void PlmMonitor::writeCommand(boost::shared_ptr<InsteonCommand>p)
+{
+    p->m_timesSent += 1;
+    if (m_verbosity >= static_cast<int>(MESSAGE_ON))
+    {
+        timeStamp(cerr());
+        cerr() << "Writing command " << std::dec << p->m_globalId << " ";
+        bufferToStream(cerr(), &p->m_command[0], p->m_command.size());
+        cerr() << std::endl;
+    }
+    if (!m_io->Write(&p->m_command[0], p->m_command.size()))
+    {   // fail now if failed to write
+        {
+            boost::mutex::scoped_lock l(m_mutex);
+            p->m_answerState = -5;
+            m_condition.notify_all();
+        }
+        if (p->m_whenDone) p->m_whenDone(p.get());
+        p.reset();
+        if (m_verbosity >= static_cast<int>(MESSAGE_ON))
+        {
+            timeStamp(cerr());
+            cerr() << "Write failed" << std::endl;
+        }
     }
 }
 

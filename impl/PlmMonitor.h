@@ -179,6 +179,7 @@ namespace w5xdInsteon {
         void getNextLinkRecordCompleted(InsteonCommand *);
         int getDeviceLinkGroup(InsteonDevice *d)const;
         void forceGetImInfo();
+        void writeCommand(boost::shared_ptr<InsteonCommand>);
     };
 }
 #endif

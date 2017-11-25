@@ -66,7 +66,7 @@ bool PlmMonitorWin::Read(unsigned char *rbuf, unsigned sizeToRead, unsigned *nrr
     return res ? true : false;  // true is success
 }
 
-bool PlmMonitorWin::Write(unsigned char *v, unsigned s)
+bool PlmMonitorWin::Write(const unsigned char *v, unsigned s)
 {
     DWORD nw;
     if ((::WriteFile(m_CommPort, (void *)v, s, &nw, 0)==0)
