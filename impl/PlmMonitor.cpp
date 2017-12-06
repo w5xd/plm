@@ -253,8 +253,8 @@ int PlmMonitor::init()
     if (status < 0) return status;
     boost::thread   t(boost::bind(&PlmMonitor::ioThread, this));
     syncWithThreadState(true);
-    {  // Set Modem mode Monitor
-        static const unsigned char tempWrite[] = {0x02, 0x6b, 0x50};   
+    {  // Set Modem mode 
+        static const unsigned char tempWrite[] = {0x02, 0x6b, 0x0};   
         sendCommandAndWait(tempWrite, sizeof(tempWrite), 4, false);
         static const unsigned char getImConfig[]  = {0x02, 0x73};
         sendCommandAndWait(getImConfig, sizeof(getImConfig), 6, false);
