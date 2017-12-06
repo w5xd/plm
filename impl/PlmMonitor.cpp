@@ -253,13 +253,13 @@ int PlmMonitor::init()
     if (status < 0) return status;
     boost::thread   t(boost::bind(&PlmMonitor::ioThread, this));
     syncWithThreadState(true);
-   	MessageGetImInfo();
     {  // Set Modem mode Monitor
-        static const unsigned char tempWrite[] = {0x02, 0x6b, 0x48};   
-        static const unsigned char getImConfig[]  = {0x02, 0x73};
+        static const unsigned char tempWrite[] = {0x02, 0x6b, 0x50};   
         sendCommandAndWait(tempWrite, sizeof(tempWrite), 4, false);
+        static const unsigned char getImConfig[]  = {0x02, 0x73};
         sendCommandAndWait(getImConfig, sizeof(getImConfig), 6, false);
     }
+    MessageGetImInfo();
     return status;
 }
 
@@ -437,9 +437,8 @@ void PlmMonitor::ioThread()
                         cerr() << " with answer ";
                         if (!curMessage.empty())
                             bufferToStream(cerr(), &curMessage[0], curMessage.size());
-                        else cerr() << " empty";
+                        else cerr() << "empty.";
                         cerr() << " Reopening tty port" << std::endl;
-                        cerr() << std::endl;
                     }
                     m_io->OpenCommPort();
                     if (--p->m_retry < 0)

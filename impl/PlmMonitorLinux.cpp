@@ -30,48 +30,45 @@ int PlmMonitorLinux::OpenCommPort()
     if (m_CommPortFD == -1)
         return -1;
     tcflush(m_CommPortFD, TCIFLUSH);
-
-    return 0;
-}
-
-bool PlmMonitorLinux::Read(unsigned char *rbuf, unsigned sizeToRead, unsigned *nrr)
-{
 	struct termios newtio;
 	tcgetattr(m_CommPortFD,&newtio);
 	newtio.c_cflag =  CS8 | CLOCAL | CREAD;
+    tcflag_t c_cflag(0);
     switch (m_BaudRate)
     {
     case 1200:
-        newtio.c_cflag |= B1200;
+        c_cflag |= B1200;
         break;
     case 1800:
-        newtio.c_cflag |= B1800;
+        c_cflag |= B1800;
         break;
     case 2400:
-        newtio.c_cflag |= B2400;
+        c_cflag |= B2400;
         break;
     case 4800:
-        newtio.c_cflag |= B4800;
+        c_cflag |= B4800;
         break;
     case 9600:
-        newtio.c_cflag |= B9600;
+        c_cflag |= B9600;
         break;
     case 19200:
-        newtio.c_cflag |= B19200;
+        c_cflag |= B19200;
         break;
     case 38400:
-        newtio.c_cflag |= B38400;
+        c_cflag |= B38400;
         break;
     case 57600:
-        newtio.c_cflag |= B57600;
+        c_cflag |= B57600;
         break;
     case 115200:
-        newtio.c_cflag |= B115200;
+        c_cflag |= B115200;
         break;
     default:
-        newtio.c_cflag |= B9600;
+        c_cflag |= B9600;
         break;
     }
+    cfsetispeed(&newtio, c_cflag); //input baudrate
+    cfsetospeed(&newtio, c_cflag); // output baudrate
 	newtio.c_iflag = IGNBRK | IGNPAR;
 	newtio.c_oflag = ONLRET | ONOCR;
 	newtio.c_lflag = 0;
@@ -82,6 +79,12 @@ bool PlmMonitorLinux::Read(unsigned char *rbuf, unsigned sizeToRead, unsigned *n
     one byte of data is available, or when the timer expires. If the timer expires 
     without any input becoming available, read(2) returns 0.     */
 	tcsetattr(m_CommPortFD,TCSANOW,&newtio);
+
+    return 0;
+}
+
+bool PlmMonitorLinux::Read(unsigned char *rbuf, unsigned sizeToRead, unsigned *nrr)
+{
     
     int res = ::read(m_CommPortFD, rbuf, sizeToRead);
     if (res >= 0)
