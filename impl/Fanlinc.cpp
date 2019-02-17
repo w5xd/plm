@@ -21,7 +21,6 @@ int Fanlinc::setFanSpeed(unsigned char v)
     extMsg[OFFSET_CMD1] = 0x11; 
     extMsg[OFFSET_CMD2] = v;  
     extMsg[OFFSET_D1] = 2;
-    PlaceCheckSum(extMsg);
     m_plm->queueCommand(extMsg, sizeof(extMsg), 23); 
     return 0;
 }

@@ -123,7 +123,6 @@ protected:
     int setX10Code(char houseCode, unsigned char unit, unsigned char btn=1);
     static void dumpFlags(std::ostream &, const std::vector<unsigned char> &);
     static void InitExtMsg(unsigned char *extMsg);
-    static void PlaceCheckSum(unsigned char *extMsg);
     mutable boost::mutex    m_mutex;
     mutable boost::condition_variable   m_condition;
     PlmMonitor  *m_plm; // non ref-counted

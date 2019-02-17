@@ -19,15 +19,6 @@ enum {EXT_MSG_LENGTH = 23,
     EXT_D6=14,
     };
 
-void InsteonDevice::PlaceCheckSum(unsigned char *extMsg)
-{
-    // This sum is undocumented, but required for, apparently,
-    // "all extended commands"
-    unsigned char x = 0;
-    for (int i = 6; i <= 20; i++) x += extMsg[i];
-    extMsg[21] = ~x + 1;
-}
-
 bool InsteonDeviceAddr::operator <(const InsteonDeviceAddr &other) const
 {
     if (m_addr[0] < other.m_addr[0])
@@ -87,7 +78,6 @@ int InsteonDevice::enterLinkMode(unsigned char group)
     memcpy(&extMsg[OFFSET_TO_ADDR], m_addr, sizeof(m_addr));
     extMsg[OFFSET_CMD1] = 0x09; 
     extMsg[OFFSET_CMD2] = group;  
-    PlaceCheckSum(extMsg);
     m_plm->sendCommandAndWait(extMsg, sizeof(extMsg), 23); 
     return 1;
 }
@@ -215,7 +205,7 @@ int InsteonDevice::numberOfLinks(int msecToWait) const
                 start = boost::posix_time::microsec_clock::universal_time();
         }
     }
-    return m_LinkTableComplete ? m_LinkTable.size() : -1;
+    return m_LinkTableComplete ? static_cast<int>(m_LinkTable.size()) : -1;
 }
 
 const char * InsteonDevice::printLinkTable() 
@@ -254,7 +244,6 @@ void InsteonDevice::reqAllLinkData(unsigned addr)
         reqAllLinkDatab[OFFSET_D4] = addr & 0xFF;
     }
     m_lastRequestedAddr = addr;
-    PlaceCheckSum(reqAllLinkDatab);
     m_plm->queueCommand(reqAllLinkDatab, sizeof(reqAllLinkDatab), 23);
 }
 
@@ -329,7 +318,6 @@ int InsteonDevice::extendedGet(unsigned char btn, unsigned char *pBuf, unsigned 
     memset(&extMsg[OFFSET_D1], 0, 14);
     extMsg[OFFSET_D1] = btn;
     extMsg[OFFSET_D2] = 0;  // data request
-    PlaceCheckSum(extMsg);
     ExtendedGetResults_t::iterator itor;
     {
         boost::mutex::scoped_lock l(m_mutex);
@@ -363,7 +351,7 @@ int InsteonDevice::extendedGet(unsigned char btn, unsigned char *pBuf, unsigned 
     }
     if (itor == m_ExtendedGetResult.end())
         return -1;
-    unsigned ret = itor->second.size();
+    unsigned ret = static_cast<unsigned>(itor->second.size());
     static const int IGNORE_CHARS = 9;
     if (ret >= IGNORE_CHARS)
         ret -= IGNORE_CHARS;
@@ -391,7 +379,7 @@ const char * InsteonDevice::printExtendedGet(unsigned char btn)
     oss << "Extended state for device " << m_addr << std::endl <<
 "                                             D1   D2   D3   D4   D5   D6   D7   D8" << std::endl <<
 "                                             btn  resp unu  unu  X10H X10U RAMP ONLV" << std::endl;
-    bufferToStream(oss, &itor->second[0], itor->second.size());
+    bufferToStream(oss, &itor->second[0], static_cast<int>(itor->second.size()));
     oss << std::endl;
     m_extendedGetPrint[btn] = oss.str();
     return m_extendedGetPrint[btn].c_str();
@@ -419,7 +407,6 @@ int InsteonDevice::createLinkWithModem(unsigned char group, bool amController,
     memcpy(&extMsg[OFFSET_TO_ADDR], m_addr, sizeof(m_addr));
     memcpy(&extMsg[OFFSET_LINK_ADDR], plmAddr, 3);
     extMsg[OFFSET_LINK_FLAG] = amController ? 0xe2 : 0xa2;  // flag as Controller/responder
-    PlaceCheckSum(extMsg);
     if (m_plm->m_verbosity >= static_cast<int>(m_plm->MESSAGE_ON))
     {
         m_plm->cerr() << "Attemping link on address " << std::hex << addr << " and group " << (int)group << std::endl;
@@ -458,7 +445,6 @@ int InsteonDevice::createLink(InsteonDevice *responder, unsigned char group,
     memcpy(&extMsg[OFFSET_TO_ADDR], m_addr, sizeof(m_addr));
     memcpy(&extMsg[OFFSET_LINK_ADDR], responder->m_addr, sizeof(responder->m_addr));
     extMsg[OFFSET_LINK_FLAG] = 0xea;  // flag as Controller
-    PlaceCheckSum(extMsg);
     boost::shared_ptr<InsteonCommand> p = m_plm->sendCommandAndWait(extMsg, sizeof(extMsg), 23); // controller
 
     addr = responder->linkAddr(m_addr, group, false, ls3);
@@ -468,7 +454,6 @@ int InsteonDevice::createLink(InsteonDevice *responder, unsigned char group,
     memcpy(&extMsg[OFFSET_LINK_ADDR], m_addr, sizeof(m_addr));
     memcpy(&extMsg[OFFSET_TO_ADDR], responder->m_addr, sizeof(responder->m_addr));
     extMsg[OFFSET_LINK_FLAG] = 0xaa;  // flag as Responder
-    PlaceCheckSum(extMsg);
     p = m_plm->sendCommandAndWait(extMsg, sizeof(extMsg), 23);
 	invalidateLinkTable();
     return 1;
@@ -605,7 +590,6 @@ int InsteonDevice::removeLinks(const InsteonDeviceAddr &addr, unsigned char grou
                 extMsg[OFFSET_LINK_FLAG] = link.m_flag & ~InUseFlag;  // clear the InUseFlag
                 if (itor->first == m_LinkTable.begin()->first) // if removing the link with lowest address
                     memset(&extMsg[OFFSET_LINK_FLAG], 0, 8);   //...then tell device truncate table here.
-                PlaceCheckSum(extMsg);
                 m_lastAcqCommand1 = 0;
                 boost::shared_ptr<InsteonCommand> p = m_plm->sendCommandAndWait(extMsg, sizeof(extMsg), 23); 
                 if (p->m_answerState < 0)
@@ -689,7 +673,6 @@ int InsteonDevice::sendExtendedCommand(unsigned char btn, unsigned char d2, unsi
     extMsg[OFFSET_D4] =  d4;
     extMsg[OFFSET_D5] = 0;
     extMsg[OFFSET_D6] = 0;
-    PlaceCheckSum(extMsg);
     m_plm->queueCommand(extMsg, sizeof(extMsg), 23); 
     return 0;
 }
@@ -709,7 +692,7 @@ int InsteonDevice::getProductData()
     {
         m_condition.timed_wait(l, boost::posix_time::time_duration(0, 0, secondsToWait));
     }
-    return m_productData.size();
+    return static_cast<int>(m_productData.size());
 }
 
 int InsteonDevice::truncateUnusedLinks()
@@ -740,7 +723,6 @@ int InsteonDevice::truncateUnusedLinks()
             extMsg[OFFSET_D3] = static_cast<unsigned char>(linkToZero >> 8);
             extMsg[OFFSET_D4] = static_cast<unsigned char>(linkToZero);
             extMsg[OFFSET_D5] = 8;
-            PlaceCheckSum(extMsg);
             boost::shared_ptr<InsteonCommand> p = m_plm->sendCommandAndWait(extMsg, sizeof(extMsg), 23); 
             if (p->m_answerState < 0)
             {

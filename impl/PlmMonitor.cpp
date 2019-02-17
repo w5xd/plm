@@ -145,7 +145,7 @@ void PlmMonitor::reportErrorState(const unsigned char *command, int clen,
             bufferToStream(cerr(), command, clen);
             cerr() << " answer ";
             if (!p->m_answer->empty())
-                bufferToStream(cerr(), &(*p->m_answer)[0], p->m_answer->size());
+                bufferToStream(cerr(), &(*p->m_answer)[0], static_cast<int>(p->m_answer->size()));
             cerr() << " answer_state: " << std::dec << p->m_answerState << std::endl;
         }
     }
@@ -178,7 +178,7 @@ boost::shared_ptr<InsteonCommand> PlmMonitor::queueCommand(
     {
         timeStamp(cerr());
         cerr() << "PlmMonitor::queueCommand " ;
-        bufferToStream(cerr(), &p->m_command[0], p->m_command.size());
+        bufferToStream(cerr(), &p->m_command[0], static_cast<int>(p->m_command.size()));
         cerr() << std::endl;
     }
     return p;
@@ -305,7 +305,7 @@ void PlmMonitor::ioThread()
                 timeStamp(cerr());
                 cerr() << "leftOver: ";
                 std::vector<unsigned char> b(leftOver.begin(), leftOver.end());
-                bufferToStream(cerr(), &b[0], b.size());
+                bufferToStream(cerr(), &b[0], static_cast<int>(b.size()));
                 cerr() << std::endl;
             }
         }
@@ -378,7 +378,7 @@ void PlmMonitor::ioThread()
                     if (!curMessage.empty())
                     {
                         cerr() << std::endl << " with current message:" << std::endl;
-                        bufferToStream(cerr(), &curMessage[0], curMessage.size());
+                        bufferToStream(cerr(), &curMessage[0], static_cast<int>(curMessage.size()));
                     }
                     else
                         cerr() << std::endl << " with no current message";
@@ -420,7 +420,7 @@ void PlmMonitor::ioThread()
                 if (curMessage.size() == expectedCount)
                     break; // successful read of IM->Host
 
-                sizeToRead = expectedCount - curMessage.size();
+                sizeToRead = static_cast<int>(expectedCount - curMessage.size());
             }
             else
                 sizeToRead -= nr;
@@ -433,10 +433,10 @@ void PlmMonitor::ioThread()
                     {
                         timeStamp(cerr());
                         cerr() << "PlmMonitor::ioThread loop count discard for message:" << std::endl;
-                        bufferToStream(cerr(), &p->m_command[0], p->m_command.size());
+                        bufferToStream(cerr(), &p->m_command[0], static_cast<int>(p->m_command.size()));
                         cerr() << " with answer ";
                         if (!curMessage.empty())
-                            bufferToStream(cerr(), &curMessage[0], curMessage.size());
+                            bufferToStream(cerr(), &curMessage[0], static_cast<int>(curMessage.size()));
                         else cerr() << "empty.";
                         cerr() << " Reopening tty port" << std::endl;
                     }
@@ -493,9 +493,9 @@ void PlmMonitor::ioThread()
                 {
                     timeStamp(cerr());
                     cerr() << "PlmMonitor::ioThread successful completion for" << std::endl;
-                    bufferToStream(cerr(), &p->m_command[0], p->m_command.size());
+                    bufferToStream(cerr(), &p->m_command[0], static_cast<int>(p->m_command.size()));
                     cerr() << " with answer" << std::endl;
-                    bufferToStream(cerr(), &curMessage[0], curMessage.size());
+                    bufferToStream(cerr(), &curMessage[0], static_cast<int>(curMessage.size()));
                     cerr() << std::endl;
                 }
                 p->m_answer = msg;
@@ -528,7 +528,7 @@ void PlmMonitor::ioThread()
                     {
                         timeStamp(cerr());
                         cerr() << "PlmMonitor::ioThread retrying command " << std::endl;
-                        bufferToStream(cerr(), &p->m_command[0], p->m_command.size());
+                        bufferToStream(cerr(), &p->m_command[0], static_cast<int>(p->m_command.size()));
                         cerr() << std::endl;
                     }
                     boost::mutex::scoped_lock l(m_mutex);
@@ -544,7 +544,7 @@ void PlmMonitor::ioThread()
 		        {
                     timeStamp(cerr());
                     cerr() << "Delivering remote message" << std::endl;
-			        bufferToStream(cerr(), &(*msg)[0], msg->size());
+			        bufferToStream(cerr(), &(*msg)[0], static_cast<int>(msg->size()));
 			        cerr() << std::endl;
 		        }
                 timeOfLastIncomingMessage = boost::posix_time::microsec_clock::universal_time();
@@ -711,7 +711,7 @@ void PlmMonitor::deliverfromRemoteMessage(boost::shared_ptr<std::vector<unsigned
         if (m_verbosity >= static_cast<int>(MESSAGE_ON))
         {
             cerr() << "Modem all-link record is ";
-            if (!v->empty()) bufferToStream(cerr(), &(*v)[0], v->size());
+            if (!v->empty()) bufferToStream(cerr(), &(*v)[0], static_cast<int>(v->size()));
             cerr() << std::endl;
         }
         if (raw.size() >= 10)
@@ -778,10 +778,10 @@ void PlmMonitor::writeCommand(boost::shared_ptr<InsteonCommand>p)
     {
         timeStamp(cerr());
         cerr() << "Writing command " << std::dec << p->m_globalId << " ";
-        bufferToStream(cerr(), &p->m_command[0], p->m_command.size());
+        bufferToStream(cerr(), &p->m_command[0], static_cast<int>(p->m_command.size()));
         cerr() << std::endl;
     }
-    if (!m_io->Write(&p->m_command[0], p->m_command.size()))
+    if (!m_io->Write(&p->m_command[0], static_cast<int>(p->m_command.size())))
     {   // fail now if failed to write
         {
             boost::mutex::scoped_lock l(m_mutex);
@@ -908,7 +908,7 @@ int PlmMonitor::getModemLinkRecords()
         boost::mutex::scoped_lock l(m_mutex);
         while (!m_haveAllModemLinks)
             m_condition.wait(l);
-        ret = m_ModemLinks.size();
+        ret = static_cast<int>(m_ModemLinks.size());
     }
     return ret;
 }
