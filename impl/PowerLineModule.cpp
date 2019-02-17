@@ -124,13 +124,6 @@ POWERLINE_DLL_ENTRY(int) getDimmerValue(Dimmer dimmer, int fromCache)
     return reinterpret_cast<w5xdInsteon::Dimmer *>(dimmer)->getDimmerValue(fromCache ? true : false);
 }
 
-
-POWERLINE_DLL_ENTRY(int) enterLinkMode(Dimmer dimmer, unsigned char group)
-{
-    if (!dimmer) return 0;
-    return reinterpret_cast<w5xdInsteon::Dimmer *>(dimmer)->enterLinkMode(group);
-}
-
 POWERLINE_DLL_ENTRY(int) linkPlm(Dimmer dimmer, int amController, unsigned char group, unsigned char ls1, unsigned char ls2, unsigned char ls3)
 {
     if (!dimmer) return 0;
@@ -294,10 +287,10 @@ POWERLINE_DLL_ENTRY(int) getBtnX10Code(Keypad keypad, char *houseCode, unsigned 
     return reinterpret_cast<w5xdInsteon::Keypad *>(keypad)->getX10Code(*houseCode, *unit, btn);
 }
 
-POWERLINE_DLL_ENTRY(int) setBtnX10Code(Keypad keypad, char houseCode, unsigned char unit, unsigned char btn)
+POWERLINE_DLL_ENTRY(int) setBtnX10Code(Keypad keypad, unsigned char houseCodeBin, unsigned char unitBin, unsigned char btn)
 {
     if (!keypad) return 0;
-    return reinterpret_cast<w5xdInsteon::Keypad *>(keypad)->setX10Code(houseCode, unit, btn);
+    return reinterpret_cast<w5xdInsteon::Keypad *>(keypad)->setX10Code(houseCodeBin, unitBin, btn);
 }
 
 POWERLINE_DLL_ENTRY(int) setBtnRampRate(Keypad keypad, unsigned char rate, unsigned char btn)

@@ -41,8 +41,6 @@ static void DimmerTest(Dimmer dimmer);
 ** are routed through the group. All other values are direct.
 */
 
-
-
 static int procCommmand(Modem *m, int *readStdin, int *waitSeconds, int argc, char **argv);
 
 int main (int argc, char **argv)
@@ -103,7 +101,6 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
     int messageLevel = -1;
     int keypadButton = -1;
     int keypadMask = -1;
-    int SetButtonPressed = 0;
     char keypadArg = 0;
     const char *controllerLink = 0;
     const char *controllerUnlink = 0;
@@ -150,7 +147,8 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
 			"          Send command <val> (normally 17 for ON and 19 for off to group -g\n"
             " -kf <btn> <val>   keypad follow mask\n"
             " -ko <btn> <val>   keypad off mask\n"
-            "           for keypad at address -d, and for button number <btn>, set follow mask (off mask)\n"
+            " -kX10 <btn> <hc> <unit>\n"
+            "           for keypad at address -d, and for button number <btn>, set follow mask (or off mask, or X10 house code and unit)\n"
             " -w <tmo> Wait for tmo seconds (default to 30) and print monitored traffic\n"
             " -x       For the dimmer -d, cross link records on this modem to duplicate\n"
             "          its group 1 behavior when turned on/off from this modem\n"
@@ -172,7 +170,6 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
 			"              5 = unit BRIGHT\n"
 			"              6 = all lights off\n"
             " -e [n]   For specified dimmer, print n extended records.\n"
-            " -SBL      Press Set button--Link mode on group -g \n"
             " -m <n>    Set message level to n.\n"
             " --        means read stdin for more commands\n"
             " <ComPort> is required. On Windows COMn, on Linux, /dev/ttyUSBn\n"
@@ -289,15 +286,6 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
                         dimmerTest = 1;
                 }
                 break;
-            case 'S':
-                if (strcmp("-SBL", argv[i]) == 0)
-                    SetButtonPressed = 1;
-                else
-                {
-                    fprintf(stderr, "Unrecognized option %s\n", argv[i]);
-                    return -1;
-                }
-                break;
             case 'w':
                 if ((i < argc - 1) && isdigit(argv[i+1][0]))
                     *waitSeconds = atoi(argv[++i]);                
@@ -351,7 +339,7 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
                     if ((i < argc - 2) && argv[i+1][0] != '-')
                     {
                         X10Hc = toupper(argv[++i][0]);
-                        X10Unit = atoi(argv[++i]);
+                        X10UnitMask = atoi(argv[++i]);
                     }
                     else
                         X10 = 1;
@@ -404,17 +392,33 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
                 if (i < argc - 2)
                 {
                     keypadArg = 0;
-                    keypadButton = atoi(argv[i+1]);
-                    keypadMask = atoi(argv[i+2]);
-                    if (strcmp(argv[i], "-kf") == 0)
-                        keypadArg = 'f';
-                    else if (strcmp(argv[i], "-ko") == 0)
-                        keypadArg = 'o';
-                    if (keypadArg   != 0)
+                    if (keypadButton >= 0)
                     {
-                        i += 2;
-                        break;
+                        fprintf(stderr, "can only do one of -kf -ko -kX10\n");
+                        return 1;
                     }
+                    keypadButton = atoi(argv[i+1]);
+                    keypadMask = atoi(argv[i + 2]);
+                    if (strcmp(argv[i], "-kX10") != 0)
+                     {
+                         if (strcmp(argv[i], "-kf") == 0)
+                             keypadArg = 'f';
+                         else if (strcmp(argv[i], "-ko") == 0)
+                             keypadArg = 'o';
+                         if (keypadArg != 0)
+                         {
+                             i += 2;
+                             break;
+                         }
+                     }
+                     else if (i < argc - 3)
+                     {
+                        X10Hc = keypadMask;
+                        keypadArg = 'x';
+                        X10UnitMask = atoi(argv[i + 3]);
+                        i += 3;
+                        break;
+                     }
                 }
                 fprintf(stderr, "unregcognized comand argument %s\n", argv[i]);
                 return -1;
@@ -523,15 +527,6 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
         clearModemLinkData(m);
         return 0;
     }  
-
-    if (SetButtonPressed != 0)
-    {
-        if (!dimmerAddr)
-        {
-            fprintf(stderr, "-SBL must also have -d\n");
-            return -1;
-        }
-    }
 
     if (printModemLinks)
     {
@@ -781,6 +776,9 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
             case 'o':
                 v = setKeypadOffMask(kp, keypadButton, keypadMask);
                 break;
+            case 'x':
+                v = setBtnX10Code(kp, (unsigned char)X10Hc, (unsigned char)X10UnitMask, keypadButton);
+                break;
             }
             if (v != -100)
                 fprintf(stderr, "Keypad mask setting result is %d\n", v);
@@ -794,8 +792,6 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
 	else if (X10Command >= 0)
 			sendX10Command(m, X10Hc, X10UnitMask, (enum X10Commands_t)(X10Command));
 
-
-
     if (deleteLinks)
     {   // order of this command is important.
         // if -d appears for a dimmer, it will be checked for responding to this modem
@@ -804,15 +800,7 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
         fprintf(stderr, "-X command returned %d\n", v);
     }
 
-    {
-        int ret;
-        if (SetButtonPressed != 0)
-        {
-            ret = enterLinkMode(dimmer, (unsigned char)linkGroup);
-        }
-    }
-
-	if (groupCommand > 0)
+ 	if (groupCommand > 0)
 		setAllDevices(m, linkGroup, groupCommand);
 
 #if 1

@@ -89,7 +89,6 @@ public:
     const InsteonDeviceAddr &addr()const{return m_addr;}
     int getProductData();
 
-    int enterLinkMode(unsigned char group);
     static const char X10HouseCodeToLetter[16];
     static const char X10HouseLetterToBits[16];//subtract 'A' from letter to index into this table
     static const char X10WheelCodeToBits[17]; // wheel codes 1 through 16 are valid
@@ -122,7 +121,8 @@ protected:
     // same range of legal values as getX10Code
     int setX10Code(char houseCode, unsigned char unit, unsigned char btn=1);
     static void dumpFlags(std::ostream &, const std::vector<unsigned char> &);
-    static void InitExtMsg(unsigned char *extMsg);
+    static void InitExtMsg(unsigned char *extMsg, unsigned char cmd1);
+    static void PlaceCheckSum(unsigned char *extMsg);
     mutable boost::mutex    m_mutex;
     mutable boost::condition_variable   m_condition;
     PlmMonitor  *m_plm; // non ref-counted

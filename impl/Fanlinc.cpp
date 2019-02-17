@@ -15,10 +15,9 @@ Fanlinc::~Fanlinc()
 int Fanlinc::setFanSpeed(unsigned char v)
 {
     unsigned char extMsg[EXTMSG_COMMAND_LEN];
-    InitExtMsg(extMsg);
+    InitExtMsg(extMsg, 0x11);
     memset(&extMsg[OFFSET_D1], 0, 14);
     memcpy(&extMsg[OFFSET_TO_ADDR], m_addr, sizeof(m_addr));
-    extMsg[OFFSET_CMD1] = 0x11; 
     extMsg[OFFSET_CMD2] = v;  
     extMsg[OFFSET_D1] = 2;
     m_plm->queueCommand(extMsg, sizeof(extMsg), 23); 

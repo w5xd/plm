@@ -64,8 +64,6 @@ extern "C" {
     POWERLINE_DLL_ENTRY(int) getDimmerValue(Dimmer dimmer, int fromCache);
     /* given a dimmer, ask it to start sending over its linking table. */
     POWERLINE_DLL_ENTRY(int) startGatherLinkTable(Dimmer dimmer);
-    /* Tell dimmer to press set button. */
-    POWERLINE_DLL_ENTRY(int) enterLinkMode(Dimmer dimmer, unsigned char group);
     /* Have the PLM respond to the dimmer on its given group. */
     POWERLINE_DLL_ENTRY(int) linkPlm(Dimmer dimmer, int amController, unsigned char group, unsigned char ls1, unsigned char ls2, unsigned char ls3);
     /* Remove PLM as as reponder to this dimmer on its group */
@@ -128,7 +126,8 @@ extern "C" {
     POWERLINE_DLL_ENTRY(int) setWallLEDbrightness(Keypad keypad, unsigned char bright);
     POWERLINE_DLL_ENTRY(int) setNonToggleState(Keypad keypad, unsigned char button, unsigned char nonToggle);
     POWERLINE_DLL_ENTRY(int) getBtnX10Code(Keypad keypad, char *houseCode, unsigned char *unit, unsigned char btn);
-    POWERLINE_DLL_ENTRY(int) setBtnX10Code(Keypad keypad, char houseCode, unsigned char unit, unsigned char btn);
+    // setBtnX10Code uses binary house code and unitBin. same as extended get prints
+    POWERLINE_DLL_ENTRY(int) setBtnX10Code(Keypad keypad, unsigned char houseCodeBin, unsigned char unitBin, unsigned char btn);
     POWERLINE_DLL_ENTRY(int) setBtnRampRate(Keypad keypad, unsigned char rate, unsigned char btn);
     POWERLINE_DLL_ENTRY(int) setBtnOnLevel(Keypad keypad, unsigned char level, unsigned char btn);
 

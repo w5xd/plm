@@ -54,12 +54,7 @@ public:
         return -1;
     }
 
-    int setX10Code(char houseCode, unsigned char unit, unsigned char btn)
-    {
-        if ((btn >= 1) && (btn <= 8))
-            return InsteonDevice::setX10Code(houseCode, unit, btn);
-        return -1;
-    }
+    int setX10Code(unsigned char houseCode, unsigned char unit, unsigned char btn);
 
    // doesn't appear to work with 2466 togglelinc dimmer. Does work with keypadlinc
     int setWallLEDbrightness(unsigned char bright)   {return sendExtendedCommand(1, 0x7, bright);}
