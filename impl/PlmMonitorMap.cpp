@@ -14,7 +14,7 @@ PlmMonitorMap::PlmMonitorMap_t *PlmMonitorMap::gPlmMonitorMap =
 PlmMonitorMap::PlmIdMap_t *PlmMonitorMap::gPlmIdMap =
     new PlmMonitorMap::PlmIdMap_t();
 
-boost::mutex *gMutex = new boost::mutex();
+std::mutex *gMutex = new std::mutex();
 
 static const char * const gErrorMessages[] =
 {
@@ -36,13 +36,13 @@ static const char * const gErrorMessages[] =
 PlmMonitor *PlmMonitorMap::openPowerLineModem(const char *name, int *wasOpen, int level,
                                               const char *logFileName)
 {
-    boost::mutex::scoped_lock l(*gMutex);
+    std::unique_lock<std::mutex> l(*gMutex);
     if (wasOpen) *wasOpen = 1;
     PlmMonitorMap_t::iterator itor = gPlmMonitorMap->find(name);
     if (itor != gPlmMonitorMap->end()) 
         return itor->second.get();
     if (wasOpen) *wasOpen = 0;
-    boost::shared_ptr<PlmMonitor> p;
+    std::shared_ptr<PlmMonitor> p;
     p.reset(new PlmMonitor(name, logFileName));
     p->setErrorLevel(level);
     int retv = p->init();
@@ -56,11 +56,11 @@ PlmMonitor *PlmMonitorMap::openPowerLineModem(const char *name, int *wasOpen, in
         return 0;
 }
 
-boost::shared_ptr<PlmMonitor> PlmMonitorMap::findOne(int which, bool remove)
+std::shared_ptr<PlmMonitor> PlmMonitorMap::findOne(int which, bool remove)
 {
-    boost::shared_ptr<PlmMonitor> p;
+    std::shared_ptr<PlmMonitor> p;
     {
-        boost::mutex::scoped_lock l(*gMutex);
+        std::unique_lock<std::mutex> l(*gMutex);
         PlmIdMap_t::iterator found = gPlmIdMap->find(which);
         if (found != gPlmIdMap->end())
         {
@@ -77,7 +77,7 @@ boost::shared_ptr<PlmMonitor> PlmMonitorMap::findOne(int which, bool remove)
 
 int PlmMonitorMap::shutdownModem(int which)
 {
-    boost::shared_ptr<PlmMonitor> p = findOne(which, true);
+    std::shared_ptr<PlmMonitor> p = findOne(which, true);
     if (p) return p->shutdownModem();
     return -8;
 }

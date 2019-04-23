@@ -3,8 +3,13 @@
 #ifndef MOD_W5XDINSTEON_PLMMONITOR_INSTEONDEVICE_H
 #define MOD_W5XDINSTEON_PLMMONITOR_INSTEONDEVICE_H
 #include <set>
-#include <boost/shared_ptr.hpp>
-#include <boost/thread.hpp>
+#include <map>
+#include <memory>
+#include <mutex>
+#include <vector>
+#include <thread>
+#include <condition_variable>
+#include <cstring>
 namespace w5xdInsteon {
 
 class PlmMonitor;
@@ -15,12 +20,12 @@ class InsteonDeviceAddr
 public:
     InsteonDeviceAddr(){memset(&m_addr[0], 0xff, sizeof(m_addr));}
     InsteonDeviceAddr(const unsigned char *c)
-    {        memcpy(m_addr, c, sizeof(m_addr));    }
+    {        std::memcpy(m_addr, c, sizeof(m_addr));    }
     operator const unsigned char * ()const {return m_addr;}
     const unsigned char &operator  [](const int &i)const {return m_addr[i];}
     bool operator ==(const InsteonDeviceAddr &other)const
     { return memcmp(m_addr, other.m_addr, 3) == 0;}
-    InsteonDeviceAddr & operator =(const unsigned char *p){memcpy(m_addr,p, sizeof(m_addr)); return *this;}
+    InsteonDeviceAddr & operator =(const unsigned char *p){std::memcpy(m_addr,p, sizeof(m_addr)); return *this;}
     bool operator <(const InsteonDeviceAddr &other) const;
     unsigned char   m_addr[3];
 };
@@ -37,7 +42,7 @@ public:
     {
         m_flag = v[0];
         m_group =v[1];
-        memcpy(&m_addr.m_addr[0], v+2, sizeof(m_addr.m_addr));
+        std::memcpy(&m_addr.m_addr[0], v+2, sizeof(m_addr.m_addr));
         m_LinkSpecific1 = v[5];
         m_LinkSpecific2 = v[6];
         m_LinkSpecific3 = v[7];
@@ -63,7 +68,7 @@ public:
     InsteonDevice(PlmMonitor *p, const unsigned char addr[3]);
     virtual ~InsteonDevice(){}
     bool operator < (const InsteonDevice &) const;
-    virtual void incomingMessage(const std::vector<unsigned char> &, boost::shared_ptr<InsteonCommand>);
+    virtual void incomingMessage(const std::vector<unsigned char> &, std::shared_ptr<InsteonCommand>);
 
     int linkPlm(bool amController, unsigned char group, unsigned char ls1=2, unsigned char ls2=2, unsigned char ls3=2);
     int unLinkPlm(bool amController, unsigned char group, unsigned char ls3 = 0);
@@ -73,8 +78,8 @@ public:
     int extendedGet(unsigned char btn, unsigned char *pBuf, unsigned bufSize);
     const char * printExtendedGet(unsigned char btn);
     int createModemGroupToMatch(int group);
-    bool linktableComplete()const{boost::mutex::scoped_lock l(m_mutex); return m_LinkTableComplete;}
-	void invalidateLinkTable(){boost::mutex::scoped_lock l(m_mutex); m_LinkTableComplete = false;}
+    bool linktableComplete()const{std::unique_lock<std::mutex> l(m_mutex); return m_LinkTableComplete;}
+	void invalidateLinkTable(){std::unique_lock<std::mutex> l(m_mutex); m_LinkTableComplete = false;}
 
     // remove links for isController true, or, for false, with matching ls3, or, if ls3 is zero, all values of ls3
     int removeLinks(const InsteonDeviceAddr &addr, unsigned char group, bool amController, unsigned char ls3);
@@ -123,8 +128,8 @@ protected:
     static void dumpFlags(std::ostream &, const std::vector<unsigned char> &);
     static void InitExtMsg(unsigned char *extMsg, unsigned char cmd1);
     static void PlaceCheckSum(unsigned char *extMsg);
-    mutable boost::mutex    m_mutex;
-    mutable boost::condition_variable   m_condition;
+    mutable std::mutex    m_mutex;
+    mutable std::condition_variable   m_condition;
     PlmMonitor  *m_plm; // non ref-counted
     InsteonDeviceAddr m_addr;
     typedef std::map<unsigned, InsteonLinkEntry> LinkTable_t;

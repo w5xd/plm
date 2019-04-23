@@ -30,15 +30,15 @@ int Fanlinc::getFanSpeed()
         { 0x02, 0x62, 0, 0, 0, 0xF, 0x19, 3};
         memcpy(&getStatus[2], m_addr, 3);
         {
-            boost::posix_time::ptime start(boost::posix_time::microsec_clock::universal_time());
-            boost::mutex::scoped_lock l(m_mutex);
-            boost::shared_ptr<InsteonCommand> p = m_plm->queueCommand(getStatus, sizeof(getStatus), 9);
+            auto start(std::chrono::steady_clock::now());
+            std::unique_lock<std::mutex> l(m_mutex);
+            std::shared_ptr<InsteonCommand> p = m_plm->queueCommand(getStatus, sizeof(getStatus), 9);
             m_lastQueryCommandId = p->m_globalId;
             m_valueKnown = false;
-            static const int secondsToWait = 5;
-            while (!m_valueKnown && (boost::posix_time::microsec_clock::universal_time() - start).total_seconds() < secondsToWait)
+            static const auto secondsToWait = std::chrono::seconds(5);
+            while (!m_valueKnown && (std::chrono::steady_clock::now() - start) < secondsToWait)
             {
-                m_condition.timed_wait(l, boost::posix_time::time_duration(0, 0, secondsToWait));
+                m_condition.wait_for(l, secondsToWait);
             }
             if (m_valueKnown) return m_lastKnown;
         }

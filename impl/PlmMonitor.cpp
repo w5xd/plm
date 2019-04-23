@@ -3,12 +3,13 @@
 #include <iomanip>
 #include <sstream>
 #include <fstream>
-#include <boost/bind.hpp>
+#include <functional>
 #include "PlmMonitor.h"
 #include "Dimmer.h"
 #include "X10Dimmer.h"
 #include "Fanlinc.h"
 #include "Keypad.h"
+#include <boost/date_time/posix_time/posix_time.hpp> // cuz c++11 chrono can't print times w/o warnings for statics
 
 #if defined (WIN32)
 #include "PlmMonitorWin.h"
@@ -53,8 +54,8 @@ void bufferToStream(std::ostream &st, const unsigned char *v, int s)
 
 namespace {
 	struct compPtr {
-			bool operator()(const boost::shared_ptr<X10Dimmer> &A,
-				const boost::shared_ptr<X10Dimmer> &B) const
+			bool operator()(const std::shared_ptr<X10Dimmer> &A,
+				const std::shared_ptr<X10Dimmer> &B) const
 			{
 				if (!A || !B)
 					return A < B;
@@ -63,14 +64,16 @@ namespace {
 		};
 }
 
-class X10DimmerCollection : public std::set<boost::shared_ptr<X10Dimmer>, compPtr> {};
+class X10DimmerCollection : public std::set<std::shared_ptr<X10Dimmer>, compPtr> {};
 
 void PlmMonitor::timeStamp(std::ostream &st)
 {
-    boost::posix_time::ptime now(boost::posix_time::microsec_clock::universal_time());
+    auto now(std::chrono::steady_clock::now());
     std::streamsize p = st.precision(6);
-    st << now << " (" << std::setfill(' ') << std::setw(13) << std::fixed << std::showpoint  
-        << (now-m_startupTime).total_microseconds() / 1000000.0 << ") ";
+    double usec = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(now-m_startupTime).count());
+    std::time_t n = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+    st << boost::posix_time::microsec_clock::universal_time() << " (" << std::setfill(' ') << std::setw(13) << std::fixed << std::showpoint
+        << usec / 1e6 << ") ";
     st.precision(p);
 }
 
@@ -84,7 +87,7 @@ PlmMonitor::PlmMonitor(const char *commPortName, const char *logFileName) :
     m_ThreadRunning(0), 
     m_io(new PlmMonitorIO(commPortName)),
     m_verbosity(static_cast<int>(MESSAGE_QUIET)),
-    m_startupTime(boost::posix_time::microsec_clock::universal_time()),
+    m_startupTime(std::chrono::steady_clock::now()),
     m_multipleLinkingRequested(0),
     m_haveAllModemLinks(false), 
     m_nextCommandId(0),
@@ -100,6 +103,8 @@ PlmMonitor::~PlmMonitor()
 {
     m_shutdown = true;
     syncWithThreadState(false);
+    if (m_thread.joinable())
+        m_thread.join();
 }
 
 int PlmMonitor::printLogString(const char *s)
@@ -112,7 +117,7 @@ const std::string &PlmMonitor::commPortName() const {return m_io->commPortName()
 
 void PlmMonitor::syncWithThreadState(bool v)
 {
-    boost::mutex::scoped_lock l(m_mutex);
+    std::unique_lock<std::mutex> l(m_mutex);
     while (v ^ (m_ThreadRunning != 0))
         m_condition.wait(l);
 }
@@ -120,7 +125,7 @@ void PlmMonitor::syncWithThreadState(bool v)
 void PlmMonitor::signalThreadStartStop(bool v)
 {
     {
-        boost::mutex::scoped_lock l(m_mutex);
+        std::unique_lock<std::mutex> l(m_mutex);
         m_ThreadRunning += v ? 1 : -1;
     }
     m_condition.notify_all();
@@ -134,7 +139,7 @@ int PlmMonitor::shutdownModem()
 }
 
 void PlmMonitor::reportErrorState(const unsigned char *command, int clen,
-                                  boost::shared_ptr<InsteonCommand> p)
+                                  std::shared_ptr<InsteonCommand> p)
 {
     if (p->m_answerState < 0)
     {
@@ -151,21 +156,21 @@ void PlmMonitor::reportErrorState(const unsigned char *command, int clen,
     }
 }
 
-boost::shared_ptr<InsteonCommand> PlmMonitor::queueCommand(
+std::shared_ptr<InsteonCommand> PlmMonitor::queueCommand(
     const unsigned char *v, unsigned s, unsigned resLen, bool retry, InsteonCommand::CompletionCb_t fcn)
 {
-    boost::shared_ptr<InsteonCommand> p;
+    std::shared_ptr<InsteonCommand> p;
     p.reset(new InsteonCommand(resLen, retry ? MAX_RETRIES : 0, fcn));
     p->m_command.assign(v, v+s);
     {
-        boost::mutex::scoped_lock l(m_mutex);
+        std::unique_lock<std::mutex> l(m_mutex);
         p->m_globalId = ++m_nextCommandId;
         if (m_writeQueue.empty() || (s <= 1) || !isOutOfOrder(v[1]))
             m_writeQueue.push_back(p);
         else
         {
             // scoot this particular command ahead of anything that is not the same command
-            std::deque<boost::shared_ptr<InsteonCommand> >::reverse_iterator itor = m_writeQueue.rbegin();
+            std::deque<std::shared_ptr<InsteonCommand> >::reverse_iterator itor = m_writeQueue.rbegin();
             while (itor != m_writeQueue.rend() && 
                     ((*itor)->m_command.size() > 1) &&
                     !isOutOfOrder((*itor)->m_command[1]))
@@ -184,12 +189,12 @@ boost::shared_ptr<InsteonCommand> PlmMonitor::queueCommand(
     return p;
 }
         
-boost::shared_ptr<InsteonCommand> 
+std::shared_ptr<InsteonCommand> 
 PlmMonitor::sendCommandAndWait(const unsigned char *v, unsigned s, unsigned resLen, bool retry)
 {
-    boost::shared_ptr<InsteonCommand> p = queueCommand(v, s, resLen, retry);
+    std::shared_ptr<InsteonCommand> p = queueCommand(v, s, resLen, retry);
     {
-        boost::mutex::scoped_lock l(m_mutex);
+        std::unique_lock<std::mutex> l(m_mutex);
         // wait for an answer
         while (p->m_answerState == 0)
             m_condition.wait(l);
@@ -203,13 +208,13 @@ PlmMonitor::forceGetImInfo()
 {
     static const unsigned char buf[] =  {0x02, 0x60};
     {
-        boost::mutex::scoped_lock l(m_mutex);
+        std::unique_lock<std::mutex> l(m_mutex);
         if (
             m_writeQueue.empty() ||
             m_writeQueue.front()->m_command.size() != sizeof(buf) ||
             memcmp(buf, &m_writeQueue.front()->m_command[0], sizeof(buf)) != 0)
         {   // only push this if the first command is not already GetImInfo
-            boost::shared_ptr<InsteonCommand> p;
+            std::shared_ptr<InsteonCommand> p;
             p.reset(new InsteonCommand(9));
             p->m_command.assign(buf, buf + sizeof(buf));
             p->m_globalId = ++m_nextCommandId;
@@ -223,7 +228,7 @@ int PlmMonitor::MessageGetImInfo()
     // Get IM Info message
     int ret = 0;
     static const unsigned char buf[] =  {0x02, 0x60};
-    boost::shared_ptr<InsteonCommand> p = sendCommandAndWait(buf, sizeof(buf), 9);
+    std::shared_ptr<InsteonCommand> p = sendCommandAndWait(buf, sizeof(buf), 9);
     if (p->m_answerState < 0)
         return p->m_answerState;
 
@@ -251,7 +256,7 @@ int PlmMonitor::init()
 {
     int status = m_io->OpenCommPort();
     if (status < 0) return status;
-    boost::thread   t(boost::bind(&PlmMonitor::ioThread, this));
+    m_thread = std::thread(std::bind(&PlmMonitor::ioThread, this));
     syncWithThreadState(true);
     {  // Set Modem mode 
         static const unsigned char tempWrite[] = {0x02, 0x6b, 0x0};   
@@ -284,9 +289,9 @@ static const int ReopenDeviceAfterFails = 100;
 void PlmMonitor::ioThread()
 {
     signalThreadStartStop(true);
-    boost::shared_ptr<InsteonCommand> p;
-    boost::shared_ptr<InsteonCommand> lastCommandAcqed;
-    boost::posix_time::ptime timeOfLastIncomingMessage = boost::posix_time::microsec_clock::universal_time();
+    std::shared_ptr<InsteonCommand> p;
+    std::shared_ptr<InsteonCommand> lastCommandAcqed;
+    auto timeOfLastIncomingMessage = std::chrono::steady_clock::now();
     unsigned char rbuf[100];
     int sizeToRead = LargestMessageLength + 1;
     std::deque<unsigned char> leftOver;
@@ -295,7 +300,7 @@ void PlmMonitor::ioThread()
     int failureMessageRepeatCount = 0;
     while (!m_shutdown)
     {
-        boost::shared_ptr<std::vector<unsigned char> > msg (
+        std::shared_ptr<std::vector<unsigned char> > msg (
             new std::vector<unsigned char>(leftOver.begin(), leftOver.end()));
         std::vector<unsigned char> &curMessage(*msg.get());
         if (m_verbosity >= static_cast<int>(MESSAGE_MOST_IO))
@@ -319,7 +324,7 @@ void PlmMonitor::ioThread()
         //  Is of the length specified by the IM command or Host command
         //
         // If we reach a 500msec timeout without any of the above happening,
-        // then discard what we have.
+        // then discard what we have. (500msec = MAX_COMMAND_READS * 100msec read timeout)
         //
         // if we receive more characters than we need, then leave them in leftOver
         // looking for command responses is more tolerant that just polling for input
@@ -327,7 +332,7 @@ void PlmMonitor::ioThread()
         for (;;)
         {
             unsigned nr=0;
-            if (m_io->Read(rbuf, sizeToRead, &nr))
+            if (m_io->Read(rbuf, sizeToRead, &nr)) // implementations each has 100msec read timeout
                 readError = 0;
             else if (++readError >= ReopenDeviceAfterFails)
             {
@@ -348,10 +353,7 @@ void PlmMonitor::ioThread()
                 }
                 if (status < 0)
                 {   // on failures, there was no wait in the Read call
-                    boost::xtime xt;
-                    boost::xtime_get(&xt, boost::TIME_UTC_);
-                    xt.sec += 2;
-                    boost::thread::sleep(xt);
+                    std::this_thread::sleep_for(std::chrono::seconds(2));
                 }
                 else
                 {
@@ -448,7 +450,7 @@ void PlmMonitor::ioThread()
                         // terminate this command--not getting an answer
                         p->m_answer = msg;
                         {
-                            boost::mutex::scoped_lock l(m_mutex);
+                            std::unique_lock<std::mutex> l(m_mutex);
                             p->m_answerState = -7;
                             m_condition.notify_all();
                         }
@@ -459,7 +461,7 @@ void PlmMonitor::ioThread()
                         if (m_verbosity >= static_cast<int>(MESSAGE_ON))
                            cerr() << "Retrying after reopening TTY" << std::endl;
                         {
-                            boost::mutex::scoped_lock l(m_mutex);
+                            std::unique_lock<std::mutex> l(m_mutex);
                             //put it back in queue at the front
                             m_writeQueue.push_front(p);
                             delayDequeue = 5; // don't dequeue this command for a bit
@@ -507,7 +509,7 @@ void PlmMonitor::ioThread()
                     (--p->m_retry < 0))
                 {
                     {
-                        boost::mutex::scoped_lock l(m_mutex);
+                        std::unique_lock<std::mutex> l(m_mutex);
                         if (acq == 0x6)
                         {
                         	p->m_answerState = 1;
@@ -531,7 +533,7 @@ void PlmMonitor::ioThread()
                         bufferToStream(cerr(), &p->m_command[0], static_cast<int>(p->m_command.size()));
                         cerr() << std::endl;
                     }
-                    boost::mutex::scoped_lock l(m_mutex);
+                    std::unique_lock<std::mutex> l(m_mutex);
                     //put it back in queue at the front
                     m_writeQueue.push_front(p);
                     p.reset();
@@ -547,10 +549,10 @@ void PlmMonitor::ioThread()
 			        bufferToStream(cerr(), &(*msg)[0], static_cast<int>(msg->size()));
 			        cerr() << std::endl;
 		        }
-                timeOfLastIncomingMessage = boost::posix_time::microsec_clock::universal_time();
+                timeOfLastIncomingMessage = std::chrono::steady_clock::now();
                 if (p)
                 {   // delay it.
-                    boost::mutex::scoped_lock l(m_mutex);
+                    std::unique_lock<std::mutex> l(m_mutex);
                     m_writeQueue.push_front(p);
                     p.reset();
                     if (m_verbosity >= static_cast<int>(MESSAGE_ON))
@@ -564,16 +566,16 @@ void PlmMonitor::ioThread()
         {
             if (leftOver.empty() && (--delayDequeue <= 0)) 
             {// check for commands to write to modem
-                boost::mutex::scoped_lock l(m_mutex);
+                std::unique_lock<std::mutex> l(m_mutex);
                 if (!m_writeQueue.empty())
                 {
-                    boost::shared_ptr<InsteonCommand> temp = m_writeQueue.front();
-                    boost::posix_time::ptime now(boost::posix_time::microsec_clock::universal_time());
+                    std::shared_ptr<InsteonCommand> temp = m_writeQueue.front();
+                    auto now(std::chrono::steady_clock::now());
                     if (
                         (temp->m_command.size() < 2) ||
                         // commands 0x62 and 0x63 cannot be sent until m_commandDelayMsec after the last thing we heard from the PLM
                         ((temp->m_command[1] != 0x62) && (temp->m_command[1] != 0x63)) ||
-                        ((now - timeOfLastIncomingMessage).total_milliseconds() > m_commandDelayMsec)
+                        ((now - timeOfLastIncomingMessage) > std::chrono::milliseconds(m_commandDelayMsec))
                         )
                     {
                         m_writeQueue.pop_front();
@@ -584,7 +586,7 @@ void PlmMonitor::ioThread()
             }
             if (p)
             {
-                timeOfLastIncomingMessage = boost::posix_time::microsec_clock::universal_time();
+                timeOfLastIncomingMessage = std::chrono::steady_clock::now();
                 writeCommand(p);
             }
         }
@@ -592,7 +594,7 @@ void PlmMonitor::ioThread()
             sizeToRead = p->m_responseLength;
     }
     {
-        boost::mutex::scoped_lock l(m_mutex);
+        std::unique_lock<std::mutex> l(m_mutex);
         while (!m_writeQueue.empty())
         {
             p = m_writeQueue.front();
@@ -609,8 +611,8 @@ void PlmMonitor::ioThread()
     }
 }
 
-void PlmMonitor::deliverfromRemoteMessage(boost::shared_ptr<std::vector<unsigned char> > v,
-                                          boost::shared_ptr<InsteonCommand> lastAcqued)
+void PlmMonitor::deliverfromRemoteMessage(std::shared_ptr<std::vector<unsigned char> > v,
+                                          std::shared_ptr<InsteonCommand> lastAcqued)
 {
     std::vector<unsigned char> &raw = *v.get();
     switch (raw[1])
@@ -621,9 +623,9 @@ void PlmMonitor::deliverfromRemoteMessage(boost::shared_ptr<std::vector<unsigned
         {
             unsigned char addr[3];
             addr[0] = raw[2]; addr[1] = raw[3]; addr[2] = raw[4];
-            boost::shared_ptr<InsteonDevice> p;
+            std::shared_ptr<InsteonDevice> p;
             {
-                boost::mutex::scoped_lock l(m_mutex);
+                std::unique_lock<std::mutex> l(m_mutex);
                 InsteonDeviceSet_t::iterator itor = m_insteonDeviceSet.find(addr);
                 if (itor != m_insteonDeviceSet.end())
                     p = itor->m_p;
@@ -649,12 +651,12 @@ void PlmMonitor::deliverfromRemoteMessage(boost::shared_ptr<std::vector<unsigned
                     }
                     if (doNotify)
                     {
-                        boost::mutex::scoped_lock l(m_mutex);
+                        std::unique_lock<std::mutex> l(m_mutex);
                         if (m_queueNotifications)
                         {
-                            boost::posix_time::ptime now(boost::posix_time::microsec_clock::universal_time());
+                            auto now(std::chrono::steady_clock::now());
                             // put together a NotificationEntry for this message
-                            boost::shared_ptr<NotificationEntry> nep (new NotificationEntry());
+                            std::shared_ptr<NotificationEntry> nep (new NotificationEntry());
                             NotificationEntry &ne = *nep.get();
                             ne.m_device = p;
                             ne.group = group;
@@ -682,7 +684,7 @@ void PlmMonitor::deliverfromRemoteMessage(boost::shared_ptr<std::vector<unsigned
                                     )
                             {
                                 if ((now - itor->get()->m_received) > 
-                                    boost::posix_time::time_duration(0, 0, 1))
+                                    std::chrono::seconds(1))
                                 {   // anything old in the notification queue is deleted
                                     itor = m_priorNotifications.erase(itor);
                                 }
@@ -716,7 +718,7 @@ void PlmMonitor::deliverfromRemoteMessage(boost::shared_ptr<std::vector<unsigned
         }
         if (raw.size() >= 10)
         {
-            boost::mutex::scoped_lock l(m_mutex);
+            std::unique_lock<std::mutex> l(m_mutex);
             m_ModemLinks.push_back(InsteonLinkEntry(&raw[2]));
         }
         else
@@ -734,7 +736,7 @@ void PlmMonitor::deliverfromRemoteMessage(boost::shared_ptr<std::vector<unsigned
             }
             unsigned char backToLinking = 0;
             {
-                boost::mutex::scoped_lock l(m_mutex);
+                std::unique_lock<std::mutex> l(m_mutex);
                 backToLinking = m_multipleLinkingRequested;
             }
             if (backToLinking != 0)
@@ -771,7 +773,7 @@ void PlmMonitor::deliverfromRemoteMessage(boost::shared_ptr<std::vector<unsigned
     }
 }
 
-void PlmMonitor::writeCommand(boost::shared_ptr<InsteonCommand>p)
+void PlmMonitor::writeCommand(std::shared_ptr<InsteonCommand>p)
 {
     p->m_timesSent += 1;
     if (m_verbosity >= static_cast<int>(MESSAGE_ON))
@@ -784,7 +786,7 @@ void PlmMonitor::writeCommand(boost::shared_ptr<InsteonCommand>p)
     if (!m_io->Write(&p->m_command[0], static_cast<int>(p->m_command.size())))
     {   // fail now if failed to write
         {
-            boost::mutex::scoped_lock l(m_mutex);
+            std::unique_lock<std::mutex> l(m_mutex);
             p->m_answerState = -5;
             m_condition.notify_all();
         }
@@ -844,7 +846,7 @@ T *PlmMonitor::getDeviceAccess(const char *p)
 template <class T>
 T *PlmMonitor::getDeviceAccess(const unsigned char addr[3])
 {
-    boost::mutex::scoped_lock l(m_mutex);
+    std::unique_lock<std::mutex> l(m_mutex);
     InsteonDeviceSet_t::iterator itor = m_insteonDeviceSet.find(addr);
     if (itor != m_insteonDeviceSet.end())
     {
@@ -857,15 +859,15 @@ T *PlmMonitor::getDeviceAccess(const unsigned char addr[3])
             m_insteonDeviceSet.erase(itor);
         }
     }
-    boost::shared_ptr<InsteonDevice> v(new T(this, addr));
+    std::shared_ptr<InsteonDevice> v(new T(this, addr));
     m_insteonDeviceSet.insert(InsteonDevicePtr(v));
     return dynamic_cast<T *>(v.get());
 }
 
 X10Dimmer *PlmMonitor::getX10DimmerAccess(char houseCode, unsigned char wheelCode)
 {
-    boost::mutex::scoped_lock l(m_mutex);
-	boost::shared_ptr<X10Dimmer> dimmer(new X10Dimmer(this, houseCode, wheelCode));
+    std::unique_lock<std::mutex> l(m_mutex);
+	std::shared_ptr<X10Dimmer> dimmer(new X10Dimmer(this, houseCode, wheelCode));
 	X10DimmerCollection::iterator itor = m_X10Dimmers->find(dimmer);
 	if (itor == m_X10Dimmers->end())
 		m_X10Dimmers->insert(dimmer);
@@ -878,7 +880,7 @@ int PlmMonitor::startLinking(int group, bool multiple)
 {
     startLinking((unsigned char)group);
     {
-        boost::mutex::scoped_lock l(m_mutex);
+        std::unique_lock<std::mutex> l(m_mutex);
         m_multipleLinkingRequested = multiple ? (unsigned char)group : 0;
     }
     return 0;
@@ -887,7 +889,7 @@ int PlmMonitor::startLinking(int group, bool multiple)
 int PlmMonitor::cancelLinking()
 {
     static unsigned char buf[] =  {0x02, 0x65};
-    boost::shared_ptr<InsteonCommand> p = sendCommandAndWait(buf, sizeof(buf), 3);
+    std::shared_ptr<InsteonCommand> p = sendCommandAndWait(buf, sizeof(buf), 3);
     return 0;
 }
 
@@ -895,17 +897,17 @@ int PlmMonitor::getModemLinkRecords()
 {
     int ret = 0;
     {
-        boost::mutex::scoped_lock l(m_mutex);
+        std::unique_lock<std::mutex> l(m_mutex);
         m_haveAllModemLinks = false;
         m_ModemLinks.clear();
     }
     {   // request first all-link record
         static const unsigned char reqAllLink[] =
         {0x02, 0x69};
-        boost::shared_ptr<InsteonCommand> q = sendCommandAndWait(reqAllLink, sizeof(reqAllLink), 3, false);
+        std::shared_ptr<InsteonCommand> q = sendCommandAndWait(reqAllLink, sizeof(reqAllLink), 3, false);
         reportErrorState(reqAllLink, sizeof(reqAllLink), q);
         getNextLinkRecordCompleted(q.get());
-        boost::mutex::scoped_lock l(m_mutex);
+        std::unique_lock<std::mutex> l(m_mutex);
         while (!m_haveAllModemLinks)
             m_condition.wait(l);
         ret = static_cast<int>(m_ModemLinks.size());
@@ -920,11 +922,11 @@ void PlmMonitor::getNextLinkRecordCompleted(InsteonCommand *q)
         static const unsigned char reqNextLink[] =
         {0x02, 0x6A};
         queueCommand(reqNextLink, sizeof(reqNextLink), 3, false, 
-            boost::bind(&PlmMonitor::getNextLinkRecordCompleted, this, _1));
+            std::bind(&PlmMonitor::getNextLinkRecordCompleted, this, std::placeholders::_1));
     }
     else
     {
-        boost::mutex::scoped_lock l(m_mutex);
+        std::unique_lock<std::mutex> l(m_mutex);
         m_haveAllModemLinks = true;
         m_condition.notify_all();
     }
@@ -933,8 +935,8 @@ void PlmMonitor::getNextLinkRecordCompleted(InsteonCommand *q)
 int PlmMonitor::clearModemLinkData()
 {
     static unsigned char buf[] =  {0x02, 0x67};
-    boost::shared_ptr<InsteonCommand> p = sendCommandAndWait(buf, sizeof(buf), 3);
-    boost::mutex::scoped_lock l(m_mutex);
+    std::shared_ptr<InsteonCommand> p = sendCommandAndWait(buf, sizeof(buf), 3);
+    std::unique_lock<std::mutex> l(m_mutex);
     m_haveAllModemLinks = true;
     m_ModemLinks.clear();
     return 0;
@@ -943,7 +945,7 @@ int PlmMonitor::clearModemLinkData()
 int PlmMonitor::nextUnusedControlGroup() const
 {
     {
-        boost::mutex::scoped_lock l(m_mutex);
+        std::unique_lock<std::mutex> l(m_mutex);
         if (!m_haveAllModemLinks)
             return -1;
     }
@@ -970,9 +972,9 @@ int PlmMonitor::nextUnusedControlGroup() const
 int PlmMonitor::createLink(InsteonDevice *who, bool amControl, unsigned char grp, 
                            unsigned char flag, unsigned char ls1, unsigned char ls2, unsigned char ls3)
 {
-    unsigned char buf[] =  {0x02, 0x6F, amControl ? 0x40 : 0x41, flag, grp, 
+    unsigned char buf[] =  {0x02, 0x6F, amControl ? 0x40u : 0x41u, flag, grp, 
         who->addr()[0], who->addr()[1], who->addr()[2], ls1, ls2, ls3};
-    boost::shared_ptr<InsteonCommand> p = sendCommandAndWait(buf, sizeof(buf), 12);
+    std::shared_ptr<InsteonCommand> p = sendCommandAndWait(buf, sizeof(buf), 12);
     return p->m_answerState;
 }
 
@@ -980,10 +982,10 @@ int PlmMonitor::removeLink(InsteonDevice *who, bool amControl, unsigned char grp
 {
     const InsteonDeviceAddr &addr = who->addr();
     unsigned char buf[11] = {
-        0x02, 0x6f, 0x80, amControl ? 0xe2 : 0, grp, 
+        0x02, 0x6f, 0x80, amControl ? 0xe2u : 0, grp, 
             addr[0], addr[1], addr[2],
             0, 0, 0};
-     boost::shared_ptr<InsteonCommand> p = sendCommandAndWait(buf, sizeof(buf), 12);
+     std::shared_ptr<InsteonCommand> p = sendCommandAndWait(buf, sizeof(buf), 12);
      return p->m_answerState;
 }
 
@@ -995,7 +997,7 @@ int PlmMonitor::deleteGroupLinks(unsigned char group)
     {
         LinkTable_t LinkTableCopy;
         {
-            boost::mutex::scoped_lock l(m_mutex);
+            std::unique_lock<std::mutex> l(m_mutex);
             if (!m_haveAllModemLinks)
                 return -1;
             LinkTableCopy = m_ModemLinks;
@@ -1015,7 +1017,7 @@ int PlmMonitor::deleteGroupLinks(unsigned char group)
 
     InsteonDeviceSet_t insteonDeviceSet;
     {
-        boost::mutex::scoped_lock l(m_mutex);
+        std::unique_lock<std::mutex> l(m_mutex);
         insteonDeviceSet = m_insteonDeviceSet;
     }
 
@@ -1053,7 +1055,7 @@ int PlmMonitor::deleteGroupLinks(unsigned char group)
     }
 
     {
-        boost::mutex::scoped_lock l(m_mutex);
+        std::unique_lock<std::mutex> l(m_mutex);
         m_haveAllModemLinks = false;
     }
 
@@ -1065,7 +1067,7 @@ int PlmMonitor::deleteGroupLinks(unsigned char group)
                 le.m_addr[0], le.m_addr[1], le.m_addr[2],
                 le.m_LinkSpecific1, le.m_LinkSpecific2, le.m_LinkSpecific3};
 
-         boost::shared_ptr<InsteonCommand> p = sendCommandAndWait(buf, sizeof(buf), 12);
+         std::shared_ptr<InsteonCommand> p = sendCommandAndWait(buf, sizeof(buf), 12);
         if (p->m_answerState < 0)
             return p->m_answerState;
     }
@@ -1077,7 +1079,7 @@ int PlmMonitor::getDeviceLinkGroup(InsteonDevice *d) const
 {
     int group = -1;
     {
-        boost::mutex::scoped_lock l(m_mutex);
+        std::unique_lock<std::mutex> l(m_mutex);
         if (!m_haveAllModemLinks)
             return -1;
         for (LinkTable_t::const_iterator itor = m_ModemLinks.begin(); itor != m_ModemLinks.end(); itor ++)
@@ -1148,7 +1150,7 @@ int PlmMonitor::sendX10Command(char houseCode, unsigned short unitMask, enum X10
 
 const char * PlmMonitor::printModemLinkTable() 
 {
-    boost::mutex::scoped_lock l(m_mutex);
+    std::unique_lock<std::mutex> l(m_mutex);
     if (!m_haveAllModemLinks) 
     {
         cerr() << "Modem links not retrieved yet" << std::endl;
@@ -1171,7 +1173,7 @@ int PlmMonitor::monitor(int waitSeconds, InsteonDevice *&dimmer,
             unsigned char &group, unsigned char &cmd1, unsigned char &cmd2,
             unsigned char &ls1, unsigned char &ls2, unsigned char &ls3)
 {
-    boost::mutex::scoped_lock l(m_mutex);
+    std::unique_lock<std::mutex> l(m_mutex);
     if (waitSeconds < 0)
         m_queueNotifications = true;
     m_ThreadRunning += 1;
@@ -1181,7 +1183,7 @@ int PlmMonitor::monitor(int waitSeconds, InsteonDevice *&dimmer,
             m_condition.wait(l);
         else if (waitSeconds > 0)
         {
-            m_condition.timed_wait(l, boost::posix_time::time_duration(0, 0, waitSeconds));
+            m_condition.wait_for(l, std::chrono::seconds(waitSeconds));
             break;
         }
         else
@@ -1205,7 +1207,7 @@ int PlmMonitor::monitor(int waitSeconds, InsteonDevice *&dimmer,
 void PlmMonitor::queueNotifications(bool v)
 {
     {
-        boost::mutex::scoped_lock l(m_mutex);
+        std::unique_lock<std::mutex> l(m_mutex);
         m_queueNotifications = v;
         if (!v)
         {

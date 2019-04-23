@@ -139,7 +139,7 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
             " -d x.y.z Dimmer operations on Insteon address x,y.z\n"
             "          \n"
             " -fl      Fanlinc instead of dimmer. -s operates on fan\n"
-            " -d pl    Print modem link table. Can be combined with another -d\n"
+            " -d pl    Print device link table. Can be combined with another -d\n"
             " -s <value> Command group grp or dimmer to on or off\n"
             "          -1 with -d runs a dimmer test sequence\n"
             "          Any other negative value just retrieves dimmer value\n"

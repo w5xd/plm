@@ -5,13 +5,15 @@
 #include <string>
 #include <vector>
 #include <fstream>
+#include <iostream>
 #include <deque>
 #include <set>
 #include <map>
-#include <boost/smart_ptr.hpp>
-#include <boost/thread.hpp>
-#include <boost/function.hpp>
-#include <boost/date_time/posix_time/posix_time.hpp>
+#include <memory>
+#include <mutex>
+#include <condition_variable>
+#include <thread>
+#include <functional>
 #include "../api/X10Commands.h"
 
 namespace w5xdInsteon {
@@ -31,24 +33,24 @@ namespace w5xdInsteon {
     {
     public:
         InsteonDevicePtr(InsteonDevice *p) : m_p(p){} // takes ownership of p
-        InsteonDevicePtr(boost::shared_ptr<InsteonDevice> p) : m_p(p){}
+        InsteonDevicePtr(std::shared_ptr<InsteonDevice> p) : m_p(p){}
         InsteonDevicePtr(const unsigned char addr[3]);
         bool operator < (const InsteonDevicePtr &other) const ;
     public:
-        boost::shared_ptr<InsteonDevice>    m_p;
+        std::shared_ptr<InsteonDevice>    m_p;
     };
 
 
     class InsteonCommand
     {
     public:
-        typedef boost::function1<void, InsteonCommand *> CompletionCb_t;
+        typedef std::function<void (InsteonCommand *)> CompletionCb_t;
         InsteonCommand(unsigned rlen, int retry=1, CompletionCb_t fcn=0) :
           m_responseLength(rlen), m_answerState(0),m_timesSent(0), m_retry(retry), m_whenDone(fcn)
           {}
         std::vector<unsigned char>   m_command;
         const unsigned m_responseLength;
-        boost::shared_ptr<std::vector<unsigned char> >  m_answer;
+        std::shared_ptr<std::vector<unsigned char> >  m_answer;
         int m_answerState;   // 0 means waiting. negative is error code. positive is finished OK
         int m_timesSent;
         int m_retry;
@@ -92,9 +94,9 @@ namespace w5xdInsteon {
 
 		int sendX10Command(char houseCode, unsigned short unitMask, enum X10Commands_t command);
 
-        boost::shared_ptr<InsteonCommand> 
+        std::shared_ptr<InsteonCommand> 
             queueCommand(const unsigned char *v, unsigned s, unsigned resLen, bool retry = true, InsteonCommand::CompletionCb_t fcn=0);
-        boost::shared_ptr<InsteonCommand> 
+        std::shared_ptr<InsteonCommand> 
             sendCommandAndWait(const unsigned char *v, unsigned s, unsigned resLen, bool retry = true);
 
         int createLink(InsteonDevice *who, bool amControl,
@@ -125,22 +127,22 @@ namespace w5xdInsteon {
    protected:
         typedef std::set<InsteonDevicePtr> InsteonDeviceSet_t;
         struct NotificationEntry {
-            boost::shared_ptr<InsteonDevice> m_device;
+            std::shared_ptr<InsteonDevice> m_device;
             unsigned char group;
             unsigned char cmd1;
             unsigned char cmd2;
             unsigned char ls1;
             unsigned char ls2;
             unsigned char ls3;
-            boost::posix_time::ptime    m_received;
+            std::chrono::steady_clock::time_point    m_received;
             NotificationEntry() : group(0), cmd1(0), cmd2(0), ls1(0), ls2(0), ls3(0){}
             bool operator == (const NotificationEntry &other)const;
         };
-        mutable boost::mutex    m_mutex;
+        mutable std::mutex    m_mutex;
         std::ofstream   m_errorFile;
-        boost::scoped_ptr<PlmMonitorIO> m_io;
-        std::deque<boost::shared_ptr<InsteonCommand> > m_writeQueue;
-        boost::condition_variable   m_condition;
+        std::unique_ptr<PlmMonitorIO> m_io;
+        std::deque<std::shared_ptr<InsteonCommand> > m_writeQueue;
+        std::condition_variable   m_condition;
         bool m_shutdown;
         int m_ThreadRunning;
         unsigned char   m_multipleLinkingRequested;
@@ -151,19 +153,20 @@ namespace w5xdInsteon {
         unsigned int m_commandDelayMsec;
         const int m_which;
         int m_nextCommandId;
-        boost::posix_time::ptime    m_startupTime;
+        std::chrono::steady_clock::time_point    m_startupTime;
         InsteonDeviceSet_t  m_insteonDeviceSet;
 
         std::deque<InsteonDevicePtr>  m_retiredDevices;
+        std::thread m_thread;
 
 		// X10 devices
-		boost::shared_ptr<X10DimmerCollection> m_X10Dimmers;
+		std::shared_ptr<X10DimmerCollection> m_X10Dimmers;
 
         bool m_haveAllModemLinks;
         typedef std::vector<InsteonLinkEntry> LinkTable_t;
         LinkTable_t  m_ModemLinks;
         std::string m_linkTablePrinted;
-        typedef std::deque<boost::shared_ptr<NotificationEntry> > NotificationEntryQueue_t;
+        typedef std::deque<std::shared_ptr<NotificationEntry> > NotificationEntryQueue_t;
         NotificationEntryQueue_t m_notifications;
         NotificationEntryQueue_t m_priorNotifications;
         bool m_queueNotifications;
@@ -174,12 +177,12 @@ namespace w5xdInsteon {
         void signalThreadStartStop(bool);
         int MessageGetImInfo();
         void timeStamp(std::ostream &st);
-        void deliverfromRemoteMessage(boost::shared_ptr<std::vector<unsigned char> >, boost::shared_ptr<InsteonCommand>);
-        void reportErrorState(const unsigned char *, int, boost::shared_ptr<InsteonCommand>);
+        void deliverfromRemoteMessage(std::shared_ptr<std::vector<unsigned char> >, std::shared_ptr<InsteonCommand>);
+        void reportErrorState(const unsigned char *, int, std::shared_ptr<InsteonCommand>);
         void getNextLinkRecordCompleted(InsteonCommand *);
         int getDeviceLinkGroup(InsteonDevice *d)const;
         void forceGetImInfo();
-        void writeCommand(boost::shared_ptr<InsteonCommand>);
+        void writeCommand(std::shared_ptr<InsteonCommand>);
     };
 }
 #endif
