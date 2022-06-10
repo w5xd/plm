@@ -507,9 +507,9 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
  
     if (modName && *modName)
     {
-        *mp = openPowerLineModem(modName, 0, 2, 0);
+        *mp = openPowerLineModem(modName, 0, 3, 0);
         if (*mp)
-            setErrorLevel(*mp, 2);
+            setErrorLevel(*mp, 3);
     }
     m = *mp;
 

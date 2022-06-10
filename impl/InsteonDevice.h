@@ -73,7 +73,7 @@ public:
     int linkPlm(bool amController, unsigned char group, unsigned char ls1=2, unsigned char ls2=2, unsigned char ls3=2);
     int unLinkPlm(bool amController, unsigned char group, unsigned char ls3 = 0);
     int startGatherLinkTable();
-    int numberOfLinks(int msecToWait = 5000)const;
+    int numberOfLinks(int msecToWait = 10000)const;
     const char * printLinkTable() ;
     int extendedGet(unsigned char btn, unsigned char *pBuf, unsigned bufSize);
     const char * printExtendedGet(unsigned char btn);
