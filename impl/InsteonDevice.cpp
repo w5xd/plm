@@ -196,17 +196,16 @@ void InsteonDevice::dumpFlags(std::ostream &os, const std::vector<unsigned char>
 int InsteonDevice::numberOfLinks(int msecToWait) const
 {
     auto start(std::chrono::steady_clock::now());
+    const auto toWait =std::chrono::milliseconds(msecToWait);
     std::unique_lock<std::mutex> l(m_mutex);
-    auto toWait =std::chrono::milliseconds(msecToWait);
-    while (!m_LinkTableComplete && (std::chrono::steady_clock::now() - start) < toWait)
+    while (!m_LinkTableComplete)
     {
         int countBefore = m_incomingMessageCount;
-        m_condition.wait_for(l, toWait);
-        if (!m_LinkTableComplete)
-        {
-            if (countBefore != m_incomingMessageCount)   // If something changed, then reset the clock
-                start = std::chrono::steady_clock::now();
-        }
+        m_condition.wait_until(l, start + toWait);
+        if (countBefore != m_incomingMessageCount)   // If something changed, then reset the clock
+            start = std::chrono::steady_clock::now();
+        else
+            break;
     }
     return m_LinkTableComplete ? static_cast<int>(m_LinkTable.size()) : -1;
 }

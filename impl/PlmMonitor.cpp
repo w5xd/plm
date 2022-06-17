@@ -1112,7 +1112,8 @@ namespace w5xdInsteon {
             itor != insteonDeviceSet.end();
             itor++)
         {
-            if (itor->m_p->numberOfLinks(10) > 0)
+            static const unsigned WAIT_FOR_LINKS_MSEC = 10;
+            if (itor->m_p->numberOfLinks(WAIT_FOR_LINKS_MSEC) > 0)
             {
                 // if we are not already planning to deal with this device...
                 bool found = false;
