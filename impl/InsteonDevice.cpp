@@ -215,7 +215,7 @@ const char * InsteonDevice::printLinkTable()
     std::unique_lock<std::mutex> l(m_mutex);
     if (!m_LinkTableComplete) 
     {
-       m_plm->cerr() << "No link table retrieved yet" << std::endl;
+       m_plm->cerr() << "Link table not fully retrieved" << std::endl;
        return 0;
     }
     std::ostringstream linkTablePrinted;

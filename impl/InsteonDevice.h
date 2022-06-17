@@ -65,6 +65,8 @@ public:
         COMMAND1=9, COMMAND2=10};
     enum {BROADCAST_BIT = 0x80, GROUP_BIT=0x40, ACK_BIT=0x20, EXTMSG_BIT=0x10};
 
+    enum { NUMBER_OF_LINKS_DEFAULT_TIMEOUT_MSEC = 10000 };
+
     InsteonDevice(PlmMonitor *p, const unsigned char addr[3]);
     virtual ~InsteonDevice(){}
     bool operator < (const InsteonDevice &) const;
@@ -73,7 +75,7 @@ public:
     int linkPlm(bool amController, unsigned char group, unsigned char ls1=2, unsigned char ls2=2, unsigned char ls3=2);
     int unLinkPlm(bool amController, unsigned char group, unsigned char ls3 = 0);
     int startGatherLinkTable();
-    int numberOfLinks(int msecToWait = 10000)const;
+    int numberOfLinks(int msecToWait = NUMBER_OF_LINKS_DEFAULT_TIMEOUT_MSEC)const;
     const char * printLinkTable() ;
     int extendedGet(unsigned char btn, unsigned char *pBuf, unsigned bufSize);
     const char * printExtendedGet(unsigned char btn);

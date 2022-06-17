@@ -51,6 +51,7 @@ int main (int argc, char **argv)
     int ret = procCommmand(&m, &readStdin, &waitSeconds, argc, argv);
     while ((ret == 0) && readStdin)
     {
+        fputs("PlmTest> ", stdout);
         char buf[256];
         char *p = fgets(buf, sizeof(buf), stdin);
         if (!p || !*p)
@@ -116,7 +117,7 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
 	int groupCommand = -1;
     if (argc < 2)
     {
-        fprintf(stderr, "Usage: PlmTest [-r] [-l] [-g grp] [-d x.y.z] [-s value] [-w [tmo]] [-x] [-X] <ComPort>\n");
+        fprintf(stderr, "Usage: PlmTest [-r] [-l] [-g grp] [-d x.y.z [-d pl]] [-s value] [-w [tmo]] [-x] [-X] <ComPort>\n");
         fprintf(stderr, 
             " -Reset   Reset modem to factory defaults. All other commands ignored\n"
             " -r       Start linking process  as responder on group grp.\n"
@@ -139,7 +140,7 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
             " -d x.y.z Dimmer operations on Insteon address x,y.z\n"
             "          \n"
             " -fl      Fanlinc instead of dimmer. -s operates on fan\n"
-            " -d pl    Print device link table. Can be combined with another -d\n"
+            " -d pl    Print device link table. Must be combined with another -d\n"
             " -s <value> Command group grp or dimmer to on or off\n"
             "          -1 with -d runs a dimmer test sequence\n"
             "          Any other negative value just retrieves dimmer value\n"
@@ -453,10 +454,10 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
 
     if (deleteLinks)
         if ((linkGroup < 0) || createLinks || setVal >= 0)
-    {
-        fprintf(stderr, "Can't remove without also only specifying -g <group>\n");
-        return 1;
-    }
+        {
+            fprintf(stderr, "Can't remove without also only specifying -g <group>\n");
+            return 1;
+        }
 
     if ((cmdStartLink < 0) && (linkGroup < 0))
     {
@@ -697,11 +698,14 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
 		}
         else
         {
-            int v;
             if (setVal < 0)
             {
-                v = fanlinc ? getFanSpeed(fanlinc) : getDimmerValue(dimmer, 0);
-                fprintf(stdout, "Getdimmer value=%d\n", v);
+                int v;
+                if (!printDimmerLinks)
+                {
+                    v = fanlinc ? getFanSpeed(fanlinc) : getDimmerValue(dimmer, 0);
+                    fprintf(stdout, "Getdimmer value=%d\n", v);
+                }
                 if (dimmerTest)
                     DimmerTest(dimmer);
             }

@@ -24,7 +24,7 @@ int Dimmer::getDimmerValue(bool fromCache)
             std::shared_ptr<InsteonCommand> p = m_plm->queueCommand(getStatus, sizeof(getStatus), 9);
             m_lastQueryCommandId = p->m_globalId;
             m_valueKnown = false;
-            static const auto secondsToWait = std::chrono::seconds(5);
+            static const auto secondsToWait = std::chrono::seconds(GET_VALUE_TIMEOUT_SECONDS);
             while (!m_valueKnown && (std::chrono::steady_clock::now() - start) < secondsToWait)
             {
                 m_condition.wait_for(l, secondsToWait);
