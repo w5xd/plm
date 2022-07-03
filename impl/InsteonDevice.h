@@ -36,7 +36,9 @@ std::ostream & operator << (std::ostream &os, const InsteonDeviceAddr &dev);
 class InsteonLinkEntry
 {
 public:
-    static const unsigned char CONTROLLER_FLAG;
+    static const unsigned char CONTROLLER_MASK;
+    static const unsigned char IS_IN_USE_MASK;
+    static const unsigned char NOT_HIGH_WATER_MARK_MASK; // ZERO IS at the highwater mark
     InsteonLinkEntry(): m_flag(0), m_group(0), m_LinkSpecific1(0), m_LinkSpecific2(0), m_LinkSpecific3(0){}
     InsteonLinkEntry(const unsigned char *v)
     {
@@ -47,7 +49,7 @@ public:
         m_LinkSpecific2 = v[6];
         m_LinkSpecific3 = v[7];
     }
-    bool isResponder() const { return (m_flag & CONTROLLER_FLAG) == 0; }
+    bool isResponder() const { return (m_flag & CONTROLLER_MASK) == 0; }
     unsigned char m_flag;
     unsigned char m_group;
     InsteonDeviceAddr m_addr;
@@ -65,7 +67,7 @@ public:
         COMMAND1=9, COMMAND2=10};
     enum {BROADCAST_BIT = 0x80, GROUP_BIT=0x40, ACK_BIT=0x20, EXTMSG_BIT=0x10};
 
-    enum { NUMBER_OF_LINKS_DEFAULT_TIMEOUT_MSEC = 10000 };
+    enum { NUMBER_OF_LINKS_DEFAULT_TIMEOUT_MSEC = 15000, GET_VERSION_ENGINE_TIMEOUT_MSEC = 10000, INVALID_ENGINE_VERSION = 0xff};
 
     InsteonDevice(PlmMonitor *p, const unsigned char addr[3]);
     virtual ~InsteonDevice(){}
@@ -81,7 +83,8 @@ public:
     const char * printExtendedGet(unsigned char btn);
     int createModemGroupToMatch(int group);
     bool linktableComplete()const{std::unique_lock<std::mutex> l(m_mutex); return m_LinkTableComplete;}
-	void invalidateLinkTable(){std::unique_lock<std::mutex> l(m_mutex); m_LinkTableComplete = false;}
+    void invalidateLinkTable() { std::unique_lock<std::mutex> l(m_mutex); m_LinkTableComplete = false; }
+    void suppressLinkTableUpdate() { m_SupressLinkTableUpdate = true; }
 
     // remove links for isController true, or, for false, with matching ls3, or, if ls3 is zero, all values of ls3
     int removeLinks(const InsteonDeviceAddr &addr, unsigned char group, bool amController, unsigned char ls3);
@@ -95,6 +98,9 @@ public:
 
     const InsteonDeviceAddr &addr()const{return m_addr;}
     int getProductData();
+    unsigned char getInsteonEngineVersion(unsigned msecToWait = GET_VERSION_ENGINE_TIMEOUT_MSEC);
+    void setLinkMode(unsigned char group);
+    void setUnlinkMode(unsigned char group);
 
     static const char X10HouseCodeToLetter[16];
     static const char X10HouseLetterToBits[16];//subtract 'A' from letter to index into this table
@@ -117,7 +123,8 @@ protected:
             OFFSET_LINK_LS1 = 18,
             OFFSET_LINK_LS2 = 19,
             OFFSET_LINK_LS3 = 20,
-            EXTMSG_COMMAND_LEN = 22};
+            OFFSET_EXTMSG_CHECKSUM,
+            EXTMSG_COMMAND_LEN};
     int createLinkWithModem(unsigned char group, bool amController, InsteonDevice *other, unsigned char og);
     int createLinkWithModem(unsigned char group, bool amController, 
                                        unsigned char ls1, unsigned char ls2, unsigned char ls3);
@@ -140,14 +147,17 @@ protected:
     unsigned m_finalAddr;
     unsigned m_lastRequestedAddr;
     unsigned m_lastAcqCommand1;
+    unsigned m_lastAcqCommand2;
     std::string m_linkTablePrinted;
     std::map<unsigned char, std::string> m_extendedGetPrint;
     typedef std::map<unsigned char, std::vector<unsigned char> > ExtendedGetResults_t;
     ExtendedGetResults_t m_ExtendedGetResult;
     std::vector<unsigned char> m_productData;
     int m_incomingMessageCount;
+    unsigned char m_InsteonEngineVersion;
 private:
     bool m_LinkTableComplete;
+    bool m_SupressLinkTableUpdate;
 };
 
 }

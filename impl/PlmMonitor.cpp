@@ -151,7 +151,7 @@ namespace w5xdInsteon {
         return 0;
     }
 
-    void PlmMonitor::reportErrorState(const unsigned char* command, int clen,
+    void PlmMonitor::reportErrorState(const unsigned char* command, int clen, const std::vector<unsigned char> &answer,
         std::shared_ptr<InsteonCommand> p)
     {
         if (p->m_answerState < 0)
@@ -162,8 +162,8 @@ namespace w5xdInsteon {
                 cerr() << "PlmMonitor::sendCommandAndWait error on ";
                 bufferToStream(cerr(), command, clen);
                 cerr() << " answer ";
-                if (!p->m_answer->empty())
-                    bufferToStream(cerr(), &(*p->m_answer)[0], static_cast<int>(p->m_answer->size()));
+                if (!answer.empty())
+                    bufferToStream(cerr(), &answer[0], static_cast<int>(answer.size()));
                 cerr() << " answer_state: " << std::dec << p->m_answerState << std::endl;
             }
         }
@@ -207,13 +207,16 @@ namespace w5xdInsteon {
         PlmMonitor::sendCommandAndWait(const unsigned char* v, unsigned s, unsigned resLen, bool retry)
     {
         std::shared_ptr<InsteonCommand> p = queueCommand(v, s, resLen, retry);
+        std::vector<unsigned char> answer;
         {
             std::unique_lock<std::mutex> l(m_mutex);
             // wait for an answer
             while (p->m_answerState == 0)
                 m_condition.wait(l);
+            if (p->m_answer)
+                answer.assign(p->m_answer->begin(), p->m_answer->end());
         }
-        reportErrorState(v, s, p);
+        reportErrorState(v, s, answer, p);
         return p;
     }
 
@@ -982,9 +985,9 @@ namespace w5xdInsteon {
         {   // request first all-link record
             static const unsigned char reqAllLink[] =
             { 0x02, GET_FIRST_ALL_LINK_COMMAND };
-            std::shared_ptr<InsteonCommand> q = sendCommandAndWait(reqAllLink, sizeof(reqAllLink), 3, false);
-            reportErrorState(reqAllLink, sizeof(reqAllLink), q);
-            getNextLinkRecordCompleted(q.get());
+            std::shared_ptr<InsteonCommand> q = queueCommand(reqAllLink, sizeof(reqAllLink), 3, false,
+                std::bind(&PlmMonitor::getNextLinkRecordCompleted, this, std::placeholders::_1),
+                std::bind(&PlmMonitor::getLinkRecordNak, this, std::placeholders::_1, std::placeholders::_2));
             std::unique_lock<std::mutex> l(m_mutex);
             while (!m_haveAllModemLinks)
                 m_condition.wait(l);
