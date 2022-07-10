@@ -74,7 +74,7 @@ int main (int argc, char **argv)
         free(argv);
     }
     if (!waitSeconds)
-        SLEEP(2);
+        SLEEP(1);
     shutdownModem(m);
     return ret;
 }
@@ -89,6 +89,7 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
     int flFlag = 0;
     int reset = 0;
     int cmdStartLink = 0; /* >0 is link as control, <0 is responder*/
+    int cmdCancelLink = 0;
     int linkGroup = -1;
     int i;
     int setVal = -1;
@@ -129,12 +130,12 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
             " -r       Start linking process  as responder on group grp.\n"
             "          If -d not specified, then stay in link mode for 4 minutes and exit\n"
             "          If -d is specified, then set link tables so PLM responds to dimmer on group grp\n"
-            " -l       Start linking process as controller on group grp (default to 254)\n"
-            "          specify -w to hold.\n"
+            " -l [stop]\n"
+            "          Start linking process as controller on group grp (default to 254)\n"
             "          if -d is also specified, then DON'T start link process, but instead set\n"
             "          PLM as controller to -d x.y.z, on group -g (or next available PLM group if no -g)\n"
             " -L <x.y.z> [slu]\n"
-            "          Links -d as responder, x.y.z as controller on controller group -g. 'slu' supresses link table update\n"
+            "          Links -d as responder, x.y.z as controller on controller group -g. 'slu', if present, supresses link table update\n"
             " -ls  <ls1> <ls2> <ls3>\n"
             "          When used with -l or -L specifies the ls1,ls2,ls3 entries (decimal) for the responder.\n"
             " -U <x.y.z> <ls3> [slu]\n"
@@ -232,8 +233,17 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
             case 'l':
 				if (!argv[i][2])
 				{
-					cmdStartLink = 1;
-					if (linkGroup < 0) linkGroup = 254; /* set default */
+                    if ((i < argc - 1) && 0 == strcmp("stop", argv[i + 1]))
+                    {
+                        cmdCancelLink = 1;
+                        cmdStartLink = 0;
+                        i += 1;
+                    }
+                    else
+                    {
+                        cmdStartLink = 1;
+                        if (linkGroup < 0) linkGroup = 254; /* set default */
+                    }
 					break;
 				}
 				else if (argv[i][2] == 's')
@@ -581,7 +591,7 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
     {
         clearModemLinkData(m);
         return 0;
-    }  
+    } 
 
     if (printModemLinks)
     {
@@ -607,19 +617,7 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
         if (!dimmerAddr)
         {
             cancelLinking(m);
-            int totalWait = *waitSeconds;
-            for (;;)
-            {
-                startLinking(m, linkGroup, 1);
-                int thisWait = totalWait;
-                if (thisWait > 10)
-                    thisWait = 10;
-                SLEEP(thisWait);
-                totalWait -= thisWait;
-                if (totalWait <= 0)
-                    break;                
-            }
-            cancelLinking(m);
+            startLinking(m, linkGroup, 1);
             return 0;
         }
         else
@@ -655,8 +653,6 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
         {
             cancelLinking(m);
             startLinkingR(m, linkGroup);
-	        SLEEP(4*60);
-            cancelLinking(m);
             return 0;
        }
     }
@@ -887,6 +883,9 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
 
  	if (groupCommand > 0)
 		setAllDevices(m, linkGroup, groupCommand);
+
+    if (cmdCancelLink > 0)
+        cancelLinking(m);
 
 #if 1
     SLEEP(*waitSeconds);

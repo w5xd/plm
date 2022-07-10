@@ -15,15 +15,6 @@ const unsigned char InUseFlag = 0x80;
 const unsigned char CMD_READ_WRITE_LINK_TABLE = 0x2f;
 const unsigned char CMD_EXTENDED_GET_SET = 0x2e;
 
-enum {EXT_MSG_LENGTH = 23,
-    EXT_D1=9,
-    EXT_D2=10,
-    EXT_D3=11,
-    EXT_D4=12,
-    EXT_D5=13,
-    EXT_D6=14,
-    };
-
 void InsteonDevice::PlaceCheckSum(unsigned char *extMsg)
 {
     // This sum is undocumented, but required for, apparently,
@@ -223,7 +214,7 @@ unsigned char InsteonDevice::getInsteonEngineVersion(unsigned msecToWait)
     auto start(std::chrono::steady_clock::now());
     const auto toWait = std::chrono::milliseconds(msecToWait);
     static const unsigned char GET_VERSION = 0xd;
-    unsigned char getVersion[8] = { 0x02, 0x62, 0, 0, 0, 0xF, GET_VERSION, 0 };
+    unsigned char getVersion[STDMSG_COMMAND_LEN] = { 0x02, 0x62, 0, 0, 0, 0xF, GET_VERSION, 0 };
     std::unique_lock<std::mutex> l(m_mutex);
     if (m_InsteonEngineVersion != INVALID_ENGINE_VERSION)
         return m_InsteonEngineVersion;
@@ -246,15 +237,19 @@ unsigned char InsteonDevice::getInsteonEngineVersion(unsigned msecToWait)
 void InsteonDevice::setLinkMode(unsigned char group)
 {
     static const unsigned char ENTER_LINKING_MODE = 0x9;
-    unsigned char enterLinkMode[8] = { 0x02, 0x62, 0, 0, 0, 0xF, ENTER_LINKING_MODE, group };
-    memcpy(&enterLinkMode[2], m_addr, 3);
-    m_plm->queueCommand(enterLinkMode, sizeof(enterLinkMode), 9);
+    unsigned char enterLinkMode[EXTMSG_COMMAND_LEN];
+    InitExtMsg(enterLinkMode, ENTER_LINKING_MODE); 
+    memset(&enterLinkMode[OFFSET_D1], 0, 14);
+    memcpy(&enterLinkMode[OFFSET_TO_ADDR], m_addr, sizeof(m_addr));
+    enterLinkMode[OFFSET_CMD2] = group;
+    PlaceCheckSum(enterLinkMode);
+    m_plm->queueCommand(enterLinkMode, sizeof(enterLinkMode), 23);
 }
 
 void InsteonDevice::setUnlinkMode(unsigned char group)
 {
     static const unsigned char ENTER_UNLINKING_MODE = 0xA;
-    unsigned char mode[8] = { 0x02, 0x62, 0, 0, 0, 0xF, ENTER_UNLINKING_MODE, group };
+    unsigned char mode[STDMSG_COMMAND_LEN] = { 0x02, 0x62, 0, 0, 0, 0xF, ENTER_UNLINKING_MODE, group };
     memcpy(&mode[2], m_addr, 3);
     m_plm->queueCommand(mode, sizeof(mode), 9);
 }
@@ -493,6 +488,7 @@ int InsteonDevice::createLink(InsteonDevice *responder, unsigned char group,
     // and group and overwrite that one.
     int addr = linkAddr(responder->m_addr, group, true, ls3);
     extMsg[OFFSET_D1] = 0;
+    extMsg[OFFSET_D2] = 2;
     extMsg[OFFSET_D3] = static_cast<unsigned char>(addr >> 8);
     extMsg[OFFSET_D4] = static_cast<unsigned char>(addr);
     extMsg[OFFSET_D5] = 8;
@@ -508,6 +504,7 @@ int InsteonDevice::createLink(InsteonDevice *responder, unsigned char group,
     addr = responder->linkAddr(m_addr, group, false, ls3);
     InitExtMsg(extMsg, CMD_READ_WRITE_LINK_TABLE);
     extMsg[OFFSET_D1] = 0;
+    extMsg[OFFSET_D2] = 2;
     extMsg[OFFSET_D3] = static_cast<unsigned char>(addr >> 8);
     extMsg[OFFSET_D4] = static_cast<unsigned char>(addr);
     extMsg[OFFSET_D5] = 8;
@@ -647,19 +644,15 @@ int InsteonDevice::removeLinks(const InsteonDeviceAddr &addr, unsigned char grou
                 unsigned char extMsg[EXTMSG_COMMAND_LEN];
                 unsigned int maddr = itor->first;
                 InitExtMsg(extMsg, CMD_READ_WRITE_LINK_TABLE);
-                extMsg[OFFSET_LINK_GROUP] = link.m_group;
-                extMsg[OFFSET_LINK_LS1] = link.m_LinkSpecific1;
-                extMsg[OFFSET_LINK_LS2] = link.m_LinkSpecific2;
-                extMsg[OFFSET_LINK_LS3] = link.m_LinkSpecific3;
+                memcpy(&extMsg[OFFSET_TO_ADDR], m_addr, sizeof(m_addr));
+                extMsg[OFFSET_D1] = 0;
+                extMsg[OFFSET_D2] = 2;
                 extMsg[OFFSET_D3] = static_cast<unsigned char>(maddr >> 8);
                 extMsg[OFFSET_D4] = static_cast<unsigned char>(maddr);
                 extMsg[OFFSET_D5] = 8;
-
-                memcpy(&extMsg[OFFSET_TO_ADDR], m_addr, sizeof(m_addr));
-                memcpy(&extMsg[OFFSET_LINK_ADDR], link.m_addr, 3);
-                extMsg[OFFSET_LINK_FLAG] = link.m_flag & ~InUseFlag;  // clear the InUseFlag
-                if (itor->first == m_LinkTable.begin()->first) // if removing the link with lowest address
-                    memset(&extMsg[OFFSET_LINK_FLAG], 0, 8);   //...then tell device truncate table here.
+                memset(&extMsg[OFFSET_LINK_FLAG], 0, 8);   //tell device truncate table here unless...
+                if (itor->first != m_LinkTable.begin()->first) // not removing the link with lowest address
+                    extMsg[OFFSET_LINK_FLAG] = link.m_flag & ~InUseFlag;  // clear the InUseFlag
                 m_lastAcqCommand1 = 0;
                 PlaceCheckSum(extMsg);
                 std::shared_ptr<InsteonCommand> p = m_plm->sendCommandAndWait(extMsg, sizeof(extMsg), 23);
@@ -695,6 +688,15 @@ const char InsteonDevice::X10WheelCodeToBits[] =
 
 int InsteonDevice::getX10Code(char &houseCode, unsigned char &unit, unsigned char btn) const
 {
+    enum {
+        EXT_MSG_LENGTH = 23,
+        EXT_D1 = 9,
+        EXT_D2 = 10,
+        EXT_D3 = 11,
+        EXT_D4 = 12,
+        EXT_D5 = 13,
+        EXT_D6 = 14,
+    };
     ExtendedGetResults_t::const_iterator itor = m_ExtendedGetResult.find(btn);
     if (itor == m_ExtendedGetResult.end())
         return -1;
@@ -750,7 +752,7 @@ int InsteonDevice::sendExtendedCommand(unsigned char btn, unsigned char d2, unsi
 
 int InsteonDevice::getProductData() 
 {   // keypad responds. togglelinc does not
-    unsigned char getPd[8] =  { 0x02, 0x62, 0, 0, 0, 0xF, 0x3, 0};
+    unsigned char getPd[STDMSG_COMMAND_LEN] =  { 0x02, 0x62, 0, 0, 0, 0xF, 0x3, 0};
     memcpy(&getPd[2], m_addr, 3);
     std::unique_lock<std::mutex> l(m_mutex);
     auto start(std::chrono::steady_clock::now());

@@ -67,7 +67,7 @@ public:
         COMMAND1=9, COMMAND2=10};
     enum {BROADCAST_BIT = 0x80, GROUP_BIT=0x40, ACK_BIT=0x20, EXTMSG_BIT=0x10};
 
-    enum { NUMBER_OF_LINKS_DEFAULT_TIMEOUT_MSEC = 15000, GET_VERSION_ENGINE_TIMEOUT_MSEC = 10000, INVALID_ENGINE_VERSION = 0xff};
+    enum { NUMBER_OF_LINKS_DEFAULT_TIMEOUT_MSEC = 2000, GET_VERSION_ENGINE_TIMEOUT_MSEC = 10000, INVALID_ENGINE_VERSION = 0xff};
 
     InsteonDevice(PlmMonitor *p, const unsigned char addr[3]);
     virtual ~InsteonDevice(){}
@@ -106,12 +106,12 @@ public:
     static const char X10HouseLetterToBits[16];//subtract 'A' from letter to index into this table
     static const char X10WheelCodeToBits[17]; // wheel codes 1 through 16 are valid
     static const char X10BitsToWheelCode[16]; // shift right 1 bit position to index into this table
-protected:
     enum {OFFSET_TO_ADDR = 2, 
             OFFSET_FLAG = 5,
             OFFSET_CMD1 = 6,
             OFFSET_CMD2 = 7,
             OFFSET_D1 = 8,
+            STDMSG_COMMAND_LEN = OFFSET_D1,
             OFFSET_D2 = 9,
             OFFSET_D3 = 10,
             OFFSET_D4 = 11,
@@ -125,6 +125,7 @@ protected:
             OFFSET_LINK_LS3 = 20,
             OFFSET_EXTMSG_CHECKSUM,
             EXTMSG_COMMAND_LEN};
+protected:
     int createLinkWithModem(unsigned char group, bool amController, InsteonDevice *other, unsigned char og);
     int createLinkWithModem(unsigned char group, bool amController, 
                                        unsigned char ls1, unsigned char ls2, unsigned char ls3);
