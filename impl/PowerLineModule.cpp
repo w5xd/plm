@@ -142,6 +142,31 @@ POWERLINE_DLL_ENTRY(int) getNumberOfLinks(Dimmer dimmer)
     return reinterpret_cast<w5xdInsteon::InsteonDevice *>(dimmer)->numberOfLinks();
 }
 
+
+POWERLINE_DLL_ENTRY(unsigned char) getInsteonEngineVersion(Dimmer dimmer)
+{
+    if (!dimmer) return 0;
+    return reinterpret_cast<w5xdInsteon::InsteonDevice*>(dimmer)->getInsteonEngineVersion();
+}
+
+POWERLINE_DLL_ENTRY(int) isLinkTableComplete(Dimmer dimmer)
+{
+    if (!dimmer) return -1;
+    return reinterpret_cast<w5xdInsteon::InsteonDevice*>(dimmer)->linktableComplete() ? 1 : 0;
+}
+
+POWERLINE_DLL_ENTRY(void) pressSetButtonLink(Dimmer dimmer, unsigned char group) 
+{
+    if (!dimmer) return;
+    return reinterpret_cast<w5xdInsteon::InsteonDevice*>(dimmer)->setLinkMode(group);
+}
+
+POWERLINE_DLL_ENTRY(void) pressSetButtonUnlink(Dimmer dimmer, unsigned char group)
+{
+    if (!dimmer) return;
+    return reinterpret_cast<w5xdInsteon::InsteonDevice*>(dimmer)->setUnlinkMode(group);
+}
+
 POWERLINE_DLL_ENTRY(const char *) printLinkTable(Dimmer dimmer)
 {
     if (!dimmer) return 0;
@@ -165,6 +190,12 @@ POWERLINE_DLL_ENTRY(int) startGatherLinkTable(Dimmer dimmer)
 {
     if (!dimmer) return 0;
     return reinterpret_cast<w5xdInsteon::InsteonDevice *>(dimmer)->startGatherLinkTable();
+}
+
+POWERLINE_DLL_ENTRY(void) suppressLinkTableUpdate(Dimmer dimmer)
+{
+    if (!dimmer) return;
+    return reinterpret_cast<w5xdInsteon::InsteonDevice*>(dimmer)->suppressLinkTableUpdate();
 }
 
 POWERLINE_DLL_ENTRY(int) createDeviceLink(Dimmer controller, Dimmer responder, 

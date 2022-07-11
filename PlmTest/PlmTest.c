@@ -51,6 +51,7 @@ int main (int argc, char **argv)
     int ret = procCommmand(&m, &readStdin, &waitSeconds, argc, argv);
     while ((ret == 0) && readStdin)
     {
+        fputs("PlmTest> ", stdout);
         char buf[256];
         char *p = fgets(buf, sizeof(buf), stdin);
         if (!p || !*p)
@@ -73,7 +74,7 @@ int main (int argc, char **argv)
         free(argv);
     }
     if (!waitSeconds)
-        SLEEP(2);
+        SLEEP(1);
     shutdownModem(m);
     return ret;
 }
@@ -88,6 +89,7 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
     int flFlag = 0;
     int reset = 0;
     int cmdStartLink = 0; /* >0 is link as control, <0 is responder*/
+    int cmdCancelLink = 0;
     int linkGroup = -1;
     int i;
     int setVal = -1;
@@ -97,6 +99,12 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
     int allStuff = 0;
     int printModemLinks = 0;
     int printDimmerLinks = 0;
+    int printEngineVersion = 0;
+    int suppressDimmerValuePrint = 0;
+    int suppressLinkTableUpdateRes = 0;
+    int suppressLinkTableUpdateCtrl = 0;
+    int simulateSETbutton = 0;
+    int simulateSETbuttonUnlink = 0;
     int printExtRecords = 0;
     int messageLevel = -1;
     int keypadButton = -1;
@@ -116,30 +124,36 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
 	int groupCommand = -1;
     if (argc < 2)
     {
-        fprintf(stderr, "Usage: PlmTest [-r] [-l] [-g grp] [-d x.y.z] [-s value] [-w [tmo]] [-x] [-X] <ComPort>\n");
-        fprintf(stderr, 
+        fprintf(stderr, "Usage: PlmTest [-r] [-l] [-g grp] [-d x.y.z [-d pl]] [-s value] [-w [tmo]] [-x] [-X] <ComPort>\n");
+        fprintf(stderr,
             " -Reset   Reset modem to factory defaults. All other commands ignored\n"
             " -r       Start linking process  as responder on group grp.\n"
             "          If -d not specified, then stay in link mode for 4 minutes and exit\n"
             "          If -d is specified, then set link tables so PLM responds to dimmer on group grp\n"
-            " -l       Start linking process as controller on group grp (default to 254)\n"
-            "          specify -w to hold.\n"
+            " -l [stop]\n"
+            "          Start linking process as controller on group grp (default to 254)\n"
             "          if -d is also specified, then DON'T start link process, but instead set\n"
-			"          PLM as controller to -d x.y.z, on group -g (or next available PLM group if no -g)\n"
-            " -L <x.y.z>\n"
-            "          Links -d as responder, x.y.z as controller on controller group -g\n"
-			" -ls  <ls1> <ls2> <ls3>\n"
-			"          When used with -l or -L specifies the ls1,ls2,ls3 entries (decimal) for the responder.\n"
-            " -U <x.y.z> <ls3>\n"
+            "          PLM as controller to -d x.y.z, on group -g (or next available PLM group if no -g)\n"
+            " -L <x.y.z> [slu]\n"
+            "          Links -d as responder, x.y.z as controller on controller group -g. 'slu', if present, supresses link table update\n"
+            " -ls  <ls1> <ls2> <ls3>\n"
+            "          When used with -l or -L specifies the ls1,ls2,ls3 entries (decimal) for the responder.\n"
+            " -U <x.y.z> <ls3> [slu]\n"
             "           Unlinks -d as responder, x.y.z as controller on controller group -g and with ls3 on responder\n"
-			"           If <x.y.z> not specified, then unlinks PLM as controller.\n"
+            "           If <x.y.z> not specified, then unlinks PLM as controller.\n"
             "           If -d not specified, then it unlinks PLM as responder.\n"
+            "           If slu is specified, then device x.y.z's link is not updated.\n"
             " -p       Print modem link table\n"
             " -g <grp> Set group number for -s and -l to grp\n"
             " -d x.y.z Dimmer operations on Insteon address x,y.z\n"
             "          \n"
             " -fl      Fanlinc instead of dimmer. -s operates on fan\n"
-            " -d pl    Print device link table. Can be combined with another -d\n"
+            " -d pl    Print device link table. Must be combined with another -d\n"
+            " -d ver   Print Insteon Engine version (currently 0 or 1). combine with -d\n"
+            " -d npv   Do not query dimmer value. Must be combined with another -d\n"
+            " -d slu   Supress link table update (so -L/-D work without fetching links)\n"
+            " -d set   Simulate SET button hold. combine with -d\n"
+            " -d setU  Simulate SET button hold twice for unlink. combine with -d\n"
             " -s <value> Command group grp or dimmer to on or off\n"
             "          -1 with -d runs a dimmer test sequence\n"
             "          Any other negative value just retrieves dimmer value\n"
@@ -219,8 +233,17 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
             case 'l':
 				if (!argv[i][2])
 				{
-					cmdStartLink = 1;
-					if (linkGroup < 0) linkGroup = 254; /* set default */
+                    if ((i < argc - 1) && 0 == strcmp("stop", argv[i + 1]))
+                    {
+                        cmdCancelLink = 1;
+                        cmdStartLink = 0;
+                        i += 1;
+                    }
+                    else
+                    {
+                        cmdStartLink = 1;
+                        if (linkGroup < 0) linkGroup = 254; /* set default */
+                    }
 					break;
 				}
 				else if (argv[i][2] == 's')
@@ -255,6 +278,11 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
                     fprintf(stderr, "-L must specify <link addr>\n");
                     return 1;
                 }
+                else if (i <= argc - 1 && strcmp(argv[i+1], "slu") == 0)
+                {
+                    suppressLinkTableUpdateCtrl = 1;
+                    i += 1;
+                }
                 break;
            case 'r':
                 cmdStartLink = -1;
@@ -264,8 +292,26 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
                 if (i < argc-1)
                 {
                     i += 1;
-                    if (strcmp(argv[i],"pl") == 0)
+                    if (strcmp(argv[i], "pl") == 0)
                         printDimmerLinks = 1;
+                    else if (strcmp(argv[i], "ver") == 0)
+                        printEngineVersion = 1;
+                    else if (strcmp(argv[i], "npv") == 0)
+                        suppressDimmerValuePrint = 1;
+                    else if (strcmp(argv[i], "slu") == 0)
+                        suppressLinkTableUpdateRes = 1;
+                    else if (strcmp(argv[i], "set") == 0)
+                    {
+                        simulateSETbutton = 1;
+                        simulateSETbuttonUnlink = 0;
+                        suppressDimmerValuePrint = 1;
+                    }
+                    else if (strcmp(argv[i], "setU") == 0)
+                    {
+                        simulateSETbutton = 0;
+                        simulateSETbuttonUnlink = 1;
+                        suppressDimmerValuePrint = 1;
+                    }
                     else
                         dimmerAddr = argv[i];
                 }
@@ -360,8 +406,15 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
 					if (strchr(controllerUnlink, '.') != 0)
 					{
 						plmUnlinkAsController = 0;
-						if ((i < argc - 1) && isdigit(argv[i+1][0]))
-							ls3 = atoi(argv[++i]);  
+                        if ((i < argc - 1) && isdigit(argv[i + 1][0]))
+                        {
+                            ls3 = atoi(argv[++i]);
+                            if ((i < argc - 1) && strcmp(argv[i+1], "slu") == 0)
+                            {
+                                suppressLinkTableUpdateCtrl = 1;
+                                i += 1;
+                            }
+                        }
 					}
 					else if (isdigit(controllerUnlink[0]))
 					{
@@ -453,10 +506,10 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
 
     if (deleteLinks)
         if ((linkGroup < 0) || createLinks || setVal >= 0)
-    {
-        fprintf(stderr, "Can't remove without also only specifying -g <group>\n");
-        return 1;
-    }
+        {
+            fprintf(stderr, "Can't remove without also only specifying -g <group>\n");
+            return 1;
+        }
 
     if ((cmdStartLink < 0) && (linkGroup < 0))
     {
@@ -490,6 +543,18 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
         return 1;
     }
 
+    if (linkGroup < 0 && (simulateSETbutton || simulateSETbuttonUnlink))
+    {
+        fprintf(stderr, "SET button operations require -g\n");
+        return 1;
+    }
+
+    if (setVal >= 0 && simulateSETbuttonUnlink)
+    {
+        fprintf(stderr, "setU button operation requires there be no -s\n");
+        return 1;
+    }
+
     if ((X10 || (X10Hc && (X10Command < 0))) && !dimmerAddr)
     {
         fprintf(stderr, "With -X10 must specify -d\n");
@@ -507,9 +572,9 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
  
     if (modName && *modName)
     {
-        *mp = openPowerLineModem(modName, 0, 2, 0);
+        *mp = openPowerLineModem(modName, 0, 3, 0);
         if (*mp)
-            setErrorLevel(*mp, 2);
+            setErrorLevel(*mp, 3);
     }
     m = *mp;
 
@@ -526,7 +591,7 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
     {
         clearModemLinkData(m);
         return 0;
-    }  
+    } 
 
     if (printModemLinks)
     {
@@ -551,9 +616,8 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
     {
         if (!dimmerAddr)
         {
-            startLinking(m,linkGroup,1);
-	        SLEEP(*waitSeconds);
             cancelLinking(m);
+            startLinking(m, linkGroup, 1);
             return 0;
         }
         else
@@ -587,14 +651,11 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
         }
         else
         {
-            startLinkingR(m, linkGroup);
-	        SLEEP(4*60);
             cancelLinking(m);
+            startLinkingR(m, linkGroup);
             return 0;
        }
     }
-    else
-        cancelLinking(m);
 
     if ((setVal >= 0) && (linkGroup >= 0))
         setAllDevices(m, linkGroup, (unsigned char)setVal);
@@ -607,7 +668,10 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
             fprintf(stderr, "Dimmer address %s is invalid\n", controllerUnlink);
             return 1;
         }
-        startGatherLinkTable(controllerU);
+        if (!suppressLinkTableUpdateCtrl)
+            startGatherLinkTable(controllerU);
+        else
+            suppressLinkTableUpdate(controllerU);
         cLinks = getNumberOfLinks(controllerU);    
         if (cLinks < 0)
             fprintf(stderr, "Can't get %s links, but continuing\n", controllerUnlink);
@@ -636,6 +700,15 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
             if (dimLinks)
                 fprintf(stderr, "%s", dimLinks);
         }
+        if (printEngineVersion)
+        {
+            unsigned char v = getInsteonEngineVersion(dimmer);
+            fprintf(stderr, "Insteon Engine Version: %d\n", (int)v);
+        }
+        if (simulateSETbutton)
+            pressSetButtonLink(dimmer, linkGroup);
+        else if (simulateSETbuttonUnlink)
+            pressSetButtonUnlink(dimmer, linkGroup);
         for (jj = 1; jj <= printExtRecords; jj++)
         {
             int ret = extendedGet(dimmer, (unsigned char)jj, 0, 0);
@@ -697,11 +770,14 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
 		}
         else
         {
-            int v;
             if (setVal < 0)
             {
-                v = fanlinc ? getFanSpeed(fanlinc) : getDimmerValue(dimmer, 0);
-                fprintf(stdout, "Getdimmer value=%d\n", v);
+                int v;
+                if (!suppressDimmerValuePrint)
+                {
+                    v = fanlinc ? getFanSpeed(fanlinc) : getDimmerValue(dimmer, 0);
+                    fprintf(stdout, "Getdimmer value=%d\n", v);
+                }
                 if (dimmerTest)
                     DimmerTest(dimmer);
             }
@@ -719,8 +795,12 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
             int v, rLinks;
             if (dimmer)
             {
-                if (!printDimmerLinks)
-                    startGatherLinkTable(dimmer);
+                if (suppressLinkTableUpdateRes)
+                    suppressLinkTableUpdate(dimmer);
+                else {
+                    if (isLinkTableComplete(dimmer) <= 0)
+                        startGatherLinkTable(dimmer);
+                }
                 rLinks = getNumberOfLinks(dimmer);
                 if ((rLinks < 0) && (cLinks < 0))
                     fprintf(stderr, "no unlinking attempted because rLinks=%d and cLinks=%d\n", rLinks, cLinks);
@@ -746,21 +826,22 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
 			}
             {
                 int cLinks, v, rLinks;
-                if (!printDimmerLinks)
-                    startGatherLinkTable(dimmer);
+                if (suppressLinkTableUpdateRes)
+                    suppressLinkTableUpdate(dimmer);
+                else {
+                    if (isLinkTableComplete(dimmer) <= 0)
+                        startGatherLinkTable(dimmer);
+                }
                 rLinks = getNumberOfLinks(dimmer);
-                startGatherLinkTable(controller);
+                if (suppressLinkTableUpdateCtrl)
+                    suppressLinkTableUpdate(controller);
+                else {
+                    if (isLinkTableComplete(controller) <= 0)
+                        startGatherLinkTable(controller);
+                }
                 cLinks = getNumberOfLinks(controller);
                 if ((rLinks >= 0) && (cLinks >= 0))
-                {
                     v = createDeviceLink(controller, dimmer, linkGroup, ls1, ls2, ls3);
-                    startGatherLinkTable(dimmer);
-                    getNumberOfLinks(dimmer);
-                    startGatherLinkTable(controller);
-                    getNumberOfLinks(controller);
-                    printLinkTable(dimmer);
-                    printLinkTable(controller);
-                }
                 else
                     fprintf(stderr, "no linking attempted because rLinks=%d and cLinks=%d\n", rLinks, cLinks);
             }
@@ -802,6 +883,9 @@ static int procCommmand (Modem *mp, int *readStdin, int *waitSeconds, int argc, 
 
  	if (groupCommand > 0)
 		setAllDevices(m, linkGroup, groupCommand);
+
+    if (cmdCancelLink > 0)
+        cancelLinking(m);
 
 #if 1
     SLEEP(*waitSeconds);

@@ -65,6 +65,8 @@ extern "C" {
     /* given a dimmer, ask it to start sending over its linking table. */
     POWERLINE_DLL_ENTRY(int) startGatherLinkTable(Dimmer dimmer);
     /* Have the PLM respond to the dimmer on its given group. */
+    POWERLINE_DLL_ENTRY(void) suppressLinkTableUpdate(Dimmer dimmer);
+    /* Allow one-way linking by suppressing link table update on this device. cancelled by startGatherLinkTable */
     POWERLINE_DLL_ENTRY(int) linkPlm(Dimmer dimmer, int amController, unsigned char group, unsigned char ls1, unsigned char ls2, unsigned char ls3);
     /* Remove PLM as as reponder to this dimmer on its group */
     POWERLINE_DLL_ENTRY(int) unLinkPlm(Dimmer dimmer, int amController, unsigned char group, unsigned char ls3);
@@ -77,6 +79,14 @@ extern "C" {
     /* returns -1 if haven't startGatherLinkTable or timeout passes*/
     POWERLINE_DLL_ENTRY(int) getNumberOfLinks(Dimmer dimmer);
     /* print links to string*/
+    POWERLINE_DLL_ENTRY(int) isLinkTableComplete(Dimmer dimmer);
+    /* non zero if already fetched link table*/
+    POWERLINE_DLL_ENTRY(unsigned char) getInsteonEngineVersion(Dimmer dimmer);
+    /* Insteon version is documented currently to be either 0 or 1. but returns 2 usually*/
+    POWERLINE_DLL_ENTRY(void) pressSetButtonLink(Dimmer dimmer, unsigned char group);
+    /* simulate hold down SET button on device*/
+    POWERLINE_DLL_ENTRY(void) pressSetButtonUnlink(Dimmer dimmer, unsigned char group);
+    /* simulate hold down SET button on device twice*/
     POWERLINE_DLL_ENTRY(const char *) printLinkTable(Dimmer dimmer);
     /* given two insteon devices, link the second as a reponder to the first.
     ** The ls1, ls2, and ls3 values are usually important to the responder, but
