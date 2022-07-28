@@ -200,10 +200,10 @@ int InsteonDevice::numberOfLinks(int msecToWait) const
     while (!m_LinkTableComplete)
     {
         int countBefore = m_incomingMessageCount;
-        m_condition.wait_until(l, start + toWait);
+        auto res = m_condition.wait_until(l, start + toWait);
         if (countBefore != m_incomingMessageCount)   // If something changed, then reset the clock
             start = std::chrono::steady_clock::now();
-        else
+        else if (res == std::cv_status::timeout)
             break;
     }
     return m_LinkTableComplete ? static_cast<int>(m_LinkTable.size()) : -1;
