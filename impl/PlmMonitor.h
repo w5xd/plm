@@ -190,9 +190,9 @@ namespace w5xdInsteon {
         int MessageGetImInfo();
         void timeStamp(std::ostream& st);
         void deliverfromRemoteMessage(std::shared_ptr<std::vector<unsigned char> >, std::shared_ptr<InsteonCommand>);
-        void reportErrorState(const unsigned char*, int, std::shared_ptr<InsteonCommand>);
+        void reportErrorState(const unsigned char*, int, const std::vector<unsigned char> &answer, std::shared_ptr<InsteonCommand>);
         void getNextLinkRecordCompleted(InsteonCommand*);
-        void getLinkRecordNak(InsteonCommand*, const std::vector<unsigned char>&);
+        void cbNakNoRetry(InsteonCommand*, const std::vector<unsigned char>&);
         int getDeviceLinkGroup(InsteonDevice* d)const;
         void forceGetImInfo();
         void writeCommand(std::shared_ptr<InsteonCommand>);

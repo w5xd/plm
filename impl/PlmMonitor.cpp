@@ -41,6 +41,8 @@ namespace w5xdInsteon {
     const unsigned char MODEM_NAK_BYTE = 0x15;
     const unsigned char GET_NEXT_ALL_LINK_COMMAND = 0x6A;
     const unsigned char GET_FIRST_ALL_LINK_COMMAND = 0x69;
+    const unsigned char MODEM_START_LINKMODE_COMMAND = 0x64;
+    const unsigned char MODEM_FACTORY_RESET_COMMAND = 0x67;
     const unsigned char OUT_OF_ORDER[] =
     {
         PlmMonitor::SET_ACQ_MSG_BYTE,
@@ -151,7 +153,7 @@ namespace w5xdInsteon {
         return 0;
     }
 
-    void PlmMonitor::reportErrorState(const unsigned char* command, int clen,
+    void PlmMonitor::reportErrorState(const unsigned char* command, int clen, const std::vector<unsigned char> &answer,
         std::shared_ptr<InsteonCommand> p)
     {
         if (p->m_answerState < 0)
@@ -162,8 +164,8 @@ namespace w5xdInsteon {
                 cerr() << "PlmMonitor::sendCommandAndWait error on ";
                 bufferToStream(cerr(), command, clen);
                 cerr() << " answer ";
-                if (!p->m_answer->empty())
-                    bufferToStream(cerr(), &(*p->m_answer)[0], static_cast<int>(p->m_answer->size()));
+                if (!answer.empty())
+                    bufferToStream(cerr(), &answer[0], static_cast<int>(answer.size()));
                 cerr() << " answer_state: " << std::dec << p->m_answerState << std::endl;
             }
         }
@@ -207,13 +209,16 @@ namespace w5xdInsteon {
         PlmMonitor::sendCommandAndWait(const unsigned char* v, unsigned s, unsigned resLen, bool retry)
     {
         std::shared_ptr<InsteonCommand> p = queueCommand(v, s, resLen, retry);
+        std::vector<unsigned char> answer;
         {
             std::unique_lock<std::mutex> l(m_mutex);
             // wait for an answer
             while (p->m_answerState == 0)
                 m_condition.wait(l);
+            if (p->m_answer)
+                answer.assign(p->m_answer->begin(), p->m_answer->end());
         }
-        reportErrorState(v, s, p);
+        reportErrorState(v, s, answer, p);
         return p;
     }
 
@@ -880,14 +885,14 @@ namespace w5xdInsteon {
 
     void PlmMonitor::startLinking(unsigned char group)
     {
-        unsigned char buf[4] = { 0x02, 0x64, 0x01 };
+        unsigned char buf[4] = { 0x02, MODEM_START_LINKMODE_COMMAND, 0x01 };
         buf[3] = group;
         queueCommand(buf, sizeof(buf), 5);
     }
 
     int PlmMonitor::startLinkingR(unsigned char group)
     {
-        unsigned char buf[4] = { 0x02, 0x64, 0 };
+        unsigned char buf[4] = { 0x02, MODEM_START_LINKMODE_COMMAND, 0 };
         buf[3] = group;
         queueCommand(buf, sizeof(buf), 5);
         return 1;
@@ -982,9 +987,9 @@ namespace w5xdInsteon {
         {   // request first all-link record
             static const unsigned char reqAllLink[] =
             { 0x02, GET_FIRST_ALL_LINK_COMMAND };
-            std::shared_ptr<InsteonCommand> q = sendCommandAndWait(reqAllLink, sizeof(reqAllLink), 3, false);
-            reportErrorState(reqAllLink, sizeof(reqAllLink), q);
-            getNextLinkRecordCompleted(q.get());
+            std::shared_ptr<InsteonCommand> q = queueCommand(reqAllLink, sizeof(reqAllLink), 3, false,
+                std::bind(&PlmMonitor::getNextLinkRecordCompleted, this, std::placeholders::_1),
+                std::bind(&PlmMonitor::cbNakNoRetry, this, std::placeholders::_1, std::placeholders::_2));
             std::unique_lock<std::mutex> l(m_mutex);
             while (!m_haveAllModemLinks)
                 m_condition.wait(l);
@@ -1001,7 +1006,7 @@ namespace w5xdInsteon {
             { 0x02, GET_NEXT_ALL_LINK_COMMAND };
             queueCommand(reqNextLink, sizeof(reqNextLink), 3, false,
                 std::bind(&PlmMonitor::getNextLinkRecordCompleted, this, std::placeholders::_1),
-                std::bind(&PlmMonitor::getLinkRecordNak, this, std::placeholders::_1, std::placeholders::_2));
+                std::bind(&PlmMonitor::cbNakNoRetry, this, std::placeholders::_1, std::placeholders::_2));
         }
         else
         {
@@ -1011,7 +1016,7 @@ namespace w5xdInsteon {
         }
     }
 
-    void PlmMonitor::getLinkRecordNak(InsteonCommand* p, const std::vector<unsigned char>& curMessage)
+    void PlmMonitor::cbNakNoRetry(InsteonCommand* p, const std::vector<unsigned char>& curMessage)
     {
         // on receipt of explicit NAK message, do not retry
         if (p && (curMessage.size() > 2) && curMessage[2] == MODEM_NAK_BYTE)
@@ -1020,8 +1025,8 @@ namespace w5xdInsteon {
 
     int PlmMonitor::clearModemLinkData()
     {
-        static unsigned char buf[] = { 0x02, 0x67 };
-        std::shared_ptr<InsteonCommand> p = sendCommandAndWait(buf, sizeof(buf), 3);
+        static unsigned char buf[] = { 0x02, MODEM_FACTORY_RESET_COMMAND };
+        std::shared_ptr<InsteonCommand> p = sendCommandAndWait(buf, sizeof(buf), 0 /*ignore ACK/NACK*/, false); 
         std::unique_lock<std::mutex> l(m_mutex);
         m_haveAllModemLinks = true;
         m_ModemLinks.clear();
@@ -1112,7 +1117,8 @@ namespace w5xdInsteon {
             itor != insteonDeviceSet.end();
             itor++)
         {
-            if (itor->m_p->numberOfLinks(10) > 0)
+            static const unsigned WAIT_FOR_LINKS_MSEC = 10;
+            if (itor->m_p->numberOfLinks(WAIT_FOR_LINKS_MSEC) > 0)
             {
                 // if we are not already planning to deal with this device...
                 bool found = false;
@@ -1333,7 +1339,5 @@ namespace w5xdInsteon {
     template Keypad* PlmMonitor::getDeviceAccess<Keypad>(const char*);
     template Fanlinc* PlmMonitor::getDeviceAccess<Fanlinc>(const char*);
     template InsteonDevice* PlmMonitor::getDeviceAccess<InsteonDevice>(const char*);
-
-
 }
 
