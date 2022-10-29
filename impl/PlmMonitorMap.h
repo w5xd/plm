@@ -4,8 +4,8 @@
 #define MOD_W5XDINSTEON_PLMMONITORMAP_H
 #include <map>
 #include <string>
-#include <boost/smart_ptr.hpp>
-#include <boost/thread.hpp>
+#include <memory>
+#include <thread>
 #include "ExportDefinition.h"
 namespace w5xdInsteon {
     class PlmMonitor;
@@ -19,11 +19,11 @@ namespace w5xdInsteon {
         static const char * getErrorMessage(int);
 
     private:
-        typedef std::map<std::string, boost::shared_ptr<PlmMonitor> > PlmMonitorMap_t;
+        typedef std::map<std::string, std::shared_ptr<PlmMonitor> > PlmMonitorMap_t;
         static PlmMonitorMap_t *gPlmMonitorMap;
-        typedef std::map<int, boost::shared_ptr<PlmMonitor> > PlmIdMap_t;
+        typedef std::map<int, std::shared_ptr<PlmMonitor> > PlmIdMap_t;
         static PlmIdMap_t *gPlmIdMap;
-        static boost::shared_ptr<PlmMonitor> findOne(int, bool remove = false);
+        static std::shared_ptr<PlmMonitor> findOne(int, bool remove = false);
     };
 }
 #endif

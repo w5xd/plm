@@ -2,30 +2,26 @@
 ** See license at http://github.com/w5xd/plm/blob/master/LICENSE.md */
 #include <cstring>
 #include <sstream>
-#include <boost/date_time/posix_time/posix_time.hpp>
+#include <chrono>
+#include <iomanip>
+#include <algorithm>
 #include "InsteonDevice.h"
 #include "PlmMonitor.h"
+#include <boost/date_time/posix_time/posix_time.hpp> // cuz c++11 chrono can't print times w/o warnings for statics
 
 namespace w5xdInsteon {
 
 const unsigned char InUseFlag = 0x80;
-
-enum {EXT_MSG_LENGTH = 23,
-    EXT_D1=9,
-    EXT_D2=10,
-    EXT_D3=11,
-    EXT_D4=12,
-    EXT_D5=13,
-    EXT_D6=14,
-    };
+const unsigned char CMD_READ_WRITE_LINK_TABLE = 0x2f;
+const unsigned char CMD_EXTENDED_GET_SET = 0x2e;
 
 void InsteonDevice::PlaceCheckSum(unsigned char *extMsg)
 {
     // This sum is undocumented, but required for, apparently,
-    // "all extended commands"
+    // extended commands that do a SET. 
     unsigned char x = 0;
-    for (int i = 6; i <= 20; i++) x += extMsg[i];
-    extMsg[21] = ~x + 1;
+    for (int i = OFFSET_CMD1; i <= OFFSET_LINK_LS3; i++) x += extMsg[i];
+    extMsg[OFFSET_EXTMSG_CHECKSUM] = ~x + 1;
 }
 
 bool InsteonDeviceAddr::operator <(const InsteonDeviceAddr &other) const
@@ -45,12 +41,14 @@ bool InsteonDeviceAddr::operator <(const InsteonDeviceAddr &other) const
     return false;
 }
 
-const unsigned char InsteonLinkEntry::CONTROLLER_FLAG = 0x40;
+const unsigned char InsteonLinkEntry::CONTROLLER_MASK = 0x40;
+const unsigned char InsteonLinkEntry::IS_IN_USE_MASK = 0x80;
+const unsigned char InsteonLinkEntry::NOT_HIGH_WATER_MARK_MASK = 1 << 1; // records below one with this clear are ignored by device
 
 void InsteonLinkEntry::print(std::ostream &oss)const
 {
     oss << std::hex << std::setw(2) <<  std::setfill(' ') << (int)m_flag << " ";
-    if (m_flag & InsteonLinkEntry::CONTROLLER_FLAG)  oss << "c"; else oss << "r";
+    if (m_flag & InsteonLinkEntry::CONTROLLER_MASK)  oss << "c"; else oss << "r";
     oss << " " <<  std::setw(2) <<  std::setfill(' ') <<
         (int)m_group << " ";
     bufferToStream(oss, m_addr, 3);
@@ -64,8 +62,11 @@ InsteonDevice::InsteonDevice(PlmMonitor *p, const unsigned char addr[3]) :
    ,m_LinkTableComplete(false)
    ,m_finalAddr(0)
    ,m_lastAcqCommand1(0)
+   ,m_lastAcqCommand2(0)
    ,m_incomingMessageCount(0)
    ,m_lastRequestedAddr(0)
+   ,m_SupressLinkTableUpdate(false)
+   ,m_InsteonEngineVersion(INVALID_ENGINE_VERSION)
 {
     m_addr = addr;
 }
@@ -79,23 +80,10 @@ static const char * const FlagLabels[] = {
     "P2P Cleanup NAK"
 };
 
-int InsteonDevice::enterLinkMode(unsigned char group)
-{
-    unsigned char extMsg[EXTMSG_COMMAND_LEN];
-    InitExtMsg(extMsg);
-    memset(&extMsg[OFFSET_D1], 0, 14);
-    memcpy(&extMsg[OFFSET_TO_ADDR], m_addr, sizeof(m_addr));
-    extMsg[OFFSET_CMD1] = 0x09; 
-    extMsg[OFFSET_CMD2] = group;  
-    PlaceCheckSum(extMsg);
-    m_plm->sendCommandAndWait(extMsg, sizeof(extMsg), 23); 
-    return 1;
-}
-
-void InsteonDevice::incomingMessage(const std::vector<unsigned char> &v, boost::shared_ptr<InsteonCommand>)
+void InsteonDevice::incomingMessage(const std::vector<unsigned char> &v, std::shared_ptr<InsteonCommand>)
 {
     {
-        boost::mutex::scoped_lock l(m_mutex);
+        std::unique_lock<std::mutex> l(m_mutex);
         m_incomingMessageCount += 1;
     }
     if (v.size() >= 25)
@@ -113,7 +101,7 @@ void InsteonDevice::incomingMessage(const std::vector<unsigned char> &v, boost::
                     which <<= 8;
                     which |= v[COMMAND2+4];
                     unsigned char flag = v[COMMAND2+6];
-                    boost::mutex::scoped_lock l(m_mutex);
+                    std::unique_lock<std::mutex> l(m_mutex);
                     if (!m_LinkTableComplete)
                     {
 #ifdef _DEBUGXXX   // force retry of a particular record to test the retry code
@@ -146,9 +134,9 @@ void InsteonDevice::incomingMessage(const std::vector<unsigned char> &v, boost::
                         }
                     }
                 }
-                else if ((v[COMMAND1] == 0x2e) && (v[COMMAND2] == 0))
+                else if ((v[COMMAND1] == CMD_EXTENDED_GET_SET) && (v[COMMAND2] == 0))
                 {
-                    boost::mutex::scoped_lock l(m_mutex);
+                    std::unique_lock<std::mutex> l(m_mutex);
                     ExtendedGetResults_t::iterator itor = m_ExtendedGetResult.insert(
                         ExtendedGetResults_t::value_type(v[COMMAND2 + 1], 
                         ExtendedGetResults_t::mapped_type())).first;
@@ -181,8 +169,9 @@ void InsteonDevice::incomingMessage(const std::vector<unsigned char> &v, boost::
             }
             else if (flagbyte == ACK_BIT)
             {
-                boost::mutex::scoped_lock l(m_mutex);
+                std::unique_lock<std::mutex> l(m_mutex);
                 m_lastAcqCommand1 = v[COMMAND1];
+                m_lastAcqCommand2 = v[COMMAND2];
                 m_condition.notify_all();
             }
         }
@@ -203,27 +192,74 @@ void InsteonDevice::dumpFlags(std::ostream &os, const std::vector<unsigned char>
 
 int InsteonDevice::numberOfLinks(int msecToWait) const
 {
-    boost::posix_time::ptime start(boost::posix_time::microsec_clock::universal_time());
-    boost::mutex::scoped_lock l(m_mutex);
-    while (!m_LinkTableComplete && (boost::posix_time::microsec_clock::universal_time() - start).total_milliseconds() < msecToWait)
+    if (m_SupressLinkTableUpdate)
+        return m_LinkTable.size();
+    auto start(std::chrono::steady_clock::now());
+    const auto toWait =std::chrono::milliseconds(msecToWait);
+    std::unique_lock<std::mutex> l(m_mutex);
+    while (!m_LinkTableComplete)
     {
         int countBefore = m_incomingMessageCount;
-        m_condition.timed_wait(l, boost::posix_time::time_duration(0, 0, 1 + msecToWait/1000));
-        if (!m_LinkTableComplete)
-        {
-            if (countBefore != m_incomingMessageCount)   // If something changed, then reset the clock
-                start = boost::posix_time::microsec_clock::universal_time();
-        }
+        m_condition.wait_until(l, start + toWait);
+        if (countBefore != m_incomingMessageCount)   // If something changed, then reset the clock
+            start = std::chrono::steady_clock::now();
+        else
+            break;
     }
-    return m_LinkTableComplete ? m_LinkTable.size() : -1;
+    return m_LinkTableComplete ? static_cast<int>(m_LinkTable.size()) : -1;
 }
 
-const char * InsteonDevice::printLinkTable() 
+unsigned char InsteonDevice::getInsteonEngineVersion(unsigned msecToWait)
 {
-    boost::mutex::scoped_lock l(m_mutex);
+    auto start(std::chrono::steady_clock::now());
+    const auto toWait = std::chrono::milliseconds(msecToWait);
+    static const unsigned char GET_VERSION = 0xd;
+    unsigned char getVersion[STDMSG_COMMAND_LEN] = { 0x02, 0x62, 0, 0, 0, 0xF, GET_VERSION, 0 };
+    std::unique_lock<std::mutex> l(m_mutex);
+    if (m_InsteonEngineVersion != INVALID_ENGINE_VERSION)
+        return m_InsteonEngineVersion;
+    memcpy(&getVersion[2], m_addr, 3);
+    auto p = m_plm->queueCommand(getVersion, sizeof(getVersion), 9);
+    while (m_InsteonEngineVersion == INVALID_ENGINE_VERSION)
+    {
+        auto timedOut = m_condition.wait_until(l, start + toWait);
+        if (m_lastAcqCommand1 == GET_VERSION)
+        {
+            m_InsteonEngineVersion = m_lastAcqCommand2;
+            break;
+        }
+        if (timedOut == std::cv_status::timeout)
+            break;
+    }
+    return m_InsteonEngineVersion;
+}
+
+void InsteonDevice::setLinkMode(unsigned char group)
+{
+    static const unsigned char ENTER_LINKING_MODE = 0x9;
+    unsigned char enterLinkMode[EXTMSG_COMMAND_LEN];
+    InitExtMsg(enterLinkMode, ENTER_LINKING_MODE); 
+    memset(&enterLinkMode[OFFSET_D1], 0, 14);
+    memcpy(&enterLinkMode[OFFSET_TO_ADDR], m_addr, sizeof(m_addr));
+    enterLinkMode[OFFSET_CMD2] = group;
+    PlaceCheckSum(enterLinkMode);
+    m_plm->queueCommand(enterLinkMode, sizeof(enterLinkMode), 23);
+}
+
+void InsteonDevice::setUnlinkMode(unsigned char group)
+{
+    static const unsigned char ENTER_UNLINKING_MODE = 0xA;
+    unsigned char mode[STDMSG_COMMAND_LEN] = { 0x02, 0x62, 0, 0, 0, 0xF, ENTER_UNLINKING_MODE, group };
+    memcpy(&mode[2], m_addr, 3);
+    m_plm->queueCommand(mode, sizeof(mode), 9);
+}
+
+const char * InsteonDevice::printLinkTable()
+{
+    std::unique_lock<std::mutex> l(m_mutex);
     if (!m_LinkTableComplete) 
     {
-       m_plm->cerr() << "No link table retrieved yet" << std::endl;
+       m_plm->cerr() << "Link table not fully retrieved" << std::endl;
        return 0;
     }
     std::ostringstream linkTablePrinted;
@@ -244,7 +280,7 @@ const char * InsteonDevice::printLinkTable()
 void InsteonDevice::reqAllLinkData(unsigned addr)
 {
     unsigned char reqAllLinkDatab[EXTMSG_COMMAND_LEN] =
-    { 0x02, 0x62, 0x11, 0x11, 0x11, 0x1F, 0x2F, 0x00, };
+    { 0x02, 0x62, 0x11, 0x11, 0x11, 0x1F, CMD_READ_WRITE_LINK_TABLE, 0x00, };
     memset(&reqAllLinkDatab[7], 0, sizeof(reqAllLinkDatab) - 7);
     memcpy(&reqAllLinkDatab[2], m_addr, 3);
     if (addr != 0)
@@ -254,17 +290,17 @@ void InsteonDevice::reqAllLinkData(unsigned addr)
         reqAllLinkDatab[OFFSET_D4] = addr & 0xFF;
     }
     m_lastRequestedAddr = addr;
-    PlaceCheckSum(reqAllLinkDatab);
     m_plm->queueCommand(reqAllLinkDatab, sizeof(reqAllLinkDatab), 23);
 }
 
 int InsteonDevice::startGatherLinkTable()
 {
     {           
-        boost::mutex::scoped_lock l(m_mutex);
+        std::unique_lock<std::mutex> l(m_mutex);
         m_LinkTable.clear();
         m_UnusedLinks.clear();
         m_LinkTableComplete = false;
+        m_SupressLinkTableUpdate = false;
         m_finalAddr = 0;
         reqAllLinkData(0);
     }
@@ -291,7 +327,7 @@ int InsteonDevice::createLinkWithModem(unsigned char group, bool amController, I
     {
         if ((itor->second.m_addr == other->m_addr) && (itor->second.m_group == og))
         {
-            if (!((itor->second.m_flag & InsteonLinkEntry::CONTROLLER_FLAG ? true : false) ^ amController))
+            if (!((itor->second.m_flag & InsteonLinkEntry::CONTROLLER_MASK ? true : false) ^ amController))
             {
                 return createLinkWithModem(group, amController, itor->second.m_LinkSpecific1,
                                                                 itor->second.m_LinkSpecific2,
@@ -302,12 +338,12 @@ int InsteonDevice::createLinkWithModem(unsigned char group, bool amController, I
     return -1;
 }
 
-void InsteonDevice::InitExtMsg(unsigned char *extMsg)
+void InsteonDevice::InitExtMsg(unsigned char *extMsg, unsigned char cmd1)
 {
     unsigned char init[EXTMSG_COMMAND_LEN] =
     { 0x02, 0x62, 
         0x11, 0x11, 0x11,   // to addr
-        0x1F, 0x2F, 0x00,   // flag, cmd1, cmd2
+        0x1F, cmd1, 0x00,   // flag, cmd1, cmd2
         0x01, 0x02,     // d1, d2
         0x0f, 0xf7,     // d3, d4
         0x08,           // d5
@@ -322,48 +358,48 @@ void InsteonDevice::InitExtMsg(unsigned char *extMsg)
 int InsteonDevice::extendedGet(unsigned char btn, unsigned char *pBuf, unsigned bufsize)
 {
     unsigned char extMsg[EXTMSG_COMMAND_LEN];
-    InitExtMsg(extMsg);
+    InitExtMsg(extMsg, CMD_EXTENDED_GET_SET);
     memcpy(&extMsg[OFFSET_TO_ADDR], m_addr, sizeof(m_addr));
-    extMsg[OFFSET_CMD1] = 0x2e; // extended Set/Get
     extMsg[OFFSET_CMD2] = 0; 
     memset(&extMsg[OFFSET_D1], 0, 14);
     extMsg[OFFSET_D1] = btn;
     extMsg[OFFSET_D2] = 0;  // data request
-    PlaceCheckSum(extMsg);
     ExtendedGetResults_t::iterator itor;
     {
-        boost::mutex::scoped_lock l(m_mutex);
+        std::unique_lock<std::mutex> l(m_mutex);
         itor = m_ExtendedGetResult.find(btn);
         if (itor != m_ExtendedGetResult.end())
             m_ExtendedGetResult.erase(itor);
     }
-    static const int secondsToWait = 5;
-    boost::mutex::scoped_lock l(m_mutex);
+    static const auto secondsToWait = std::chrono::seconds(5);
+    std::unique_lock<std::mutex> l(m_mutex);
     itor = m_ExtendedGetResult.end();
     int attempts = 2;
     while (itor == m_ExtendedGetResult.end() && (attempts-- >= 0))
     {
-        boost::posix_time::ptime start(boost::posix_time::microsec_clock::universal_time());
-        boost::shared_ptr<InsteonCommand> p = m_plm->queueCommand(extMsg, sizeof(extMsg), 23); 
+        auto start(std::chrono::steady_clock::now());
+        std::shared_ptr<InsteonCommand> p = m_plm->queueCommand(extMsg, sizeof(extMsg), 23); 
         while (itor == m_ExtendedGetResult.end() && 
-            (boost::posix_time::microsec_clock::universal_time() - start).total_seconds() < secondsToWait)
+            (std::chrono::steady_clock::now() - start) < secondsToWait)
         {
             int msgCount = m_incomingMessageCount;
-            m_condition.timed_wait(l, boost::posix_time::time_duration(0, 0, secondsToWait));
+            m_condition.wait_for(l, secondsToWait);
             itor = m_ExtendedGetResult.find(btn); 
             if ((msgCount != m_incomingMessageCount) || (p->m_timesSent == 0))
-                start = boost::posix_time::microsec_clock::universal_time();
+                start = std::chrono::steady_clock::now();
             
             if (static_cast<int>(m_plm->m_verbosity) >= PlmMonitor::MESSAGE_EVERY_IO)
-                m_plm->cerr() << std::dec<< "Get: at " << start << " btn " << (int)btn << 
+            {
+                m_plm->cerr() << std::dec << "Get: at " << boost::posix_time::microsec_clock::universal_time() << " btn " << (int)btn <<
                     " msgCount " << msgCount << " attempts " << attempts <<
-                    " m_incomingMessageCount " << m_incomingMessageCount << 
+                    " m_incomingMessageCount " << m_incomingMessageCount <<
                     (itor == m_ExtendedGetResult.end() ? " not found" : " found") << std::endl;
+            }
         }
     }
     if (itor == m_ExtendedGetResult.end())
         return -1;
-    unsigned ret = itor->second.size();
+    unsigned ret = static_cast<unsigned>(itor->second.size());
     static const int IGNORE_CHARS = 9;
     if (ret >= IGNORE_CHARS)
         ret -= IGNORE_CHARS;
@@ -380,7 +416,7 @@ int InsteonDevice::extendedGet(unsigned char btn, unsigned char *pBuf, unsigned 
 
 const char * InsteonDevice::printExtendedGet(unsigned char btn)
 {
-    boost::mutex::scoped_lock l(m_mutex);
+    std::unique_lock<std::mutex> l(m_mutex);
     ExtendedGetResults_t::const_iterator itor = m_ExtendedGetResult.find(btn);
     if (itor == m_ExtendedGetResult.end() ) 
     {
@@ -391,7 +427,7 @@ const char * InsteonDevice::printExtendedGet(unsigned char btn)
     oss << "Extended state for device " << m_addr << std::endl <<
 "                                             D1   D2   D3   D4   D5   D6   D7   D8" << std::endl <<
 "                                             btn  resp unu  unu  X10H X10U RAMP ONLV" << std::endl;
-    bufferToStream(oss, &itor->second[0], itor->second.size());
+    bufferToStream(oss, &itor->second[0], static_cast<int>(itor->second.size()));
     oss << std::endl;
     m_extendedGetPrint[btn] = oss.str();
     return m_extendedGetPrint[btn].c_str();
@@ -407,7 +443,7 @@ int InsteonDevice::createLinkWithModem(unsigned char group, bool amController,
     InsteonDeviceAddr plmAddr(m_plm->insteonID());
     int addr = linkAddr(plmAddr, group, amController, ls3);
     unsigned char extMsg[EXTMSG_COMMAND_LEN];
-    InitExtMsg(extMsg);
+    InitExtMsg(extMsg, CMD_READ_WRITE_LINK_TABLE);
     extMsg[OFFSET_LINK_GROUP] = group;
     extMsg[OFFSET_LINK_LS1] = ls1;
     extMsg[OFFSET_LINK_LS2] = ls2;
@@ -419,13 +455,11 @@ int InsteonDevice::createLinkWithModem(unsigned char group, bool amController,
     memcpy(&extMsg[OFFSET_TO_ADDR], m_addr, sizeof(m_addr));
     memcpy(&extMsg[OFFSET_LINK_ADDR], plmAddr, 3);
     extMsg[OFFSET_LINK_FLAG] = amController ? 0xe2 : 0xa2;  // flag as Controller/responder
-    PlaceCheckSum(extMsg);
     if (m_plm->m_verbosity >= static_cast<int>(m_plm->MESSAGE_ON))
-    {
         m_plm->cerr() << "Attemping link on address " << std::hex << addr << " and group " << (int)group << std::endl;
-    }
 
-    boost::shared_ptr<InsteonCommand> p = m_plm->sendCommandAndWait(extMsg, sizeof(extMsg), 23); 
+    PlaceCheckSum(extMsg);
+    std::shared_ptr<InsteonCommand> p = m_plm->sendCommandAndWait(extMsg, sizeof(extMsg), 23); 
 	invalidateLinkTable();
     return p->m_answerState;
 }
@@ -438,11 +472,12 @@ int InsteonDevice::createLink(InsteonDevice *responder, unsigned char group,
     // controller and responder. (Because their values on the controller appear to be irrelevant)
     if (memcmp(&m_addr[0], &responder->m_addr[0], sizeof(m_addr)) == 0)
         return -1; // can't link to self
-    if (!linktableComplete()) return -2;
-    if (!responder->linktableComplete()) return -3;
+    if (!linktableComplete() && !m_SupressLinkTableUpdate) return -2;
+    if (!responder->linktableComplete() && !responder->m_SupressLinkTableUpdate) return -3;
 
+    // message to self is first. We are controller
     unsigned char extMsg[EXTMSG_COMMAND_LEN];
-    InitExtMsg(extMsg);
+    InitExtMsg(extMsg, CMD_READ_WRITE_LINK_TABLE);
     extMsg[OFFSET_LINK_GROUP] = group;
     extMsg[OFFSET_LINK_LS1] = ls1;
     extMsg[OFFSET_LINK_LS2] = ls2;
@@ -452,25 +487,40 @@ int InsteonDevice::createLink(InsteonDevice *responder, unsigned char group,
     // Notice if the controllers already have a link to the same addr
     // and group and overwrite that one.
     int addr = linkAddr(responder->m_addr, group, true, ls3);
-    extMsg[OFFSET_D3] = static_cast<unsigned char>(addr >> 8);
-    extMsg[OFFSET_D4] = static_cast<unsigned char>(addr);
-
-    memcpy(&extMsg[OFFSET_TO_ADDR], m_addr, sizeof(m_addr));
-    memcpy(&extMsg[OFFSET_LINK_ADDR], responder->m_addr, sizeof(responder->m_addr));
-    extMsg[OFFSET_LINK_FLAG] = 0xea;  // flag as Controller
-    PlaceCheckSum(extMsg);
-    boost::shared_ptr<InsteonCommand> p = m_plm->sendCommandAndWait(extMsg, sizeof(extMsg), 23); // controller
-
-    addr = responder->linkAddr(m_addr, group, false, ls3);
+    extMsg[OFFSET_D1] = 0;
+    extMsg[OFFSET_D2] = 2;
     extMsg[OFFSET_D3] = static_cast<unsigned char>(addr >> 8);
     extMsg[OFFSET_D4] = static_cast<unsigned char>(addr);
     extMsg[OFFSET_D5] = 8;
+
+    memcpy(&extMsg[OFFSET_TO_ADDR], m_addr, sizeof(m_addr));
+    memcpy(&extMsg[OFFSET_LINK_ADDR], responder->m_addr, sizeof(responder->m_addr));
+    extMsg[OFFSET_LINK_FLAG] = InsteonLinkEntry::CONTROLLER_MASK | InsteonLinkEntry::IS_IN_USE_MASK | InsteonLinkEntry::NOT_HIGH_WATER_MARK_MASK | (1 << 5);  // flag as Controller
+    PlaceCheckSum(extMsg);
+    std::shared_ptr<InsteonCommand> p;
+    if (!m_SupressLinkTableUpdate)
+        p = m_plm->sendCommandAndWait(extMsg, sizeof(extMsg), 23); // controller
+
+    addr = responder->linkAddr(m_addr, group, false, ls3);
+    InitExtMsg(extMsg, CMD_READ_WRITE_LINK_TABLE);
+    extMsg[OFFSET_D1] = 0;
+    extMsg[OFFSET_D2] = 2;
+    extMsg[OFFSET_D3] = static_cast<unsigned char>(addr >> 8);
+    extMsg[OFFSET_D4] = static_cast<unsigned char>(addr);
+    extMsg[OFFSET_D5] = 8;
+    extMsg[OFFSET_LINK_GROUP] = group;
+    extMsg[OFFSET_LINK_LS1] = ls1;
+    extMsg[OFFSET_LINK_LS2] = ls2;
+    extMsg[OFFSET_LINK_LS3] = ls3;
     memcpy(&extMsg[OFFSET_LINK_ADDR], m_addr, sizeof(m_addr));
     memcpy(&extMsg[OFFSET_TO_ADDR], responder->m_addr, sizeof(responder->m_addr));
-    extMsg[OFFSET_LINK_FLAG] = 0xaa;  // flag as Responder
+    extMsg[OFFSET_LINK_FLAG] = InsteonLinkEntry::IS_IN_USE_MASK | InsteonLinkEntry::NOT_HIGH_WATER_MARK_MASK | (1 << 5);  // flag as Controller
     PlaceCheckSum(extMsg);
-    p = m_plm->sendCommandAndWait(extMsg, sizeof(extMsg), 23);
+    if (!responder->m_SupressLinkTableUpdate)
+        p = m_plm->sendCommandAndWait(extMsg, sizeof(extMsg), 23);
+
 	invalidateLinkTable();
+    responder->invalidateLinkTable();
     return 1;
 }
 
@@ -481,11 +531,11 @@ int InsteonDevice::createModemGroupToMatch(int grp)
     if (!m_LinkTableComplete) return -1;
     std::vector<InsteonDevice *> othersToLink;
     {
-        boost::mutex::scoped_lock l(m_mutex);
+        std::unique_lock<std::mutex> l(m_mutex);
         for (LinkTable_t::iterator itor = m_LinkTable.begin(); itor != m_LinkTable.end(); itor++)
         {
             InsteonLinkEntry &link = itor->second;
-            if ((link.m_flag & InsteonLinkEntry::CONTROLLER_FLAG) && (link.m_group == GROUP_1))
+            if ((link.m_flag & InsteonLinkEntry::CONTROLLER_MASK) && (link.m_group == GROUP_1))
             {   // controller on group 1
                 othersToLink.push_back(m_plm->getDeviceAccess<InsteonDevice>(link.m_addr));
             }
@@ -531,7 +581,7 @@ int InsteonDevice::linkAddr(const InsteonDeviceAddr &dev, unsigned char grp, boo
             addr = nextAddr;
         if ((itor->second.m_addr == dev) && (itor->second.m_group == grp))
         {
-            if (!((itor->second.m_flag & InsteonLinkEntry::CONTROLLER_FLAG ? true : false) ^ isControl)) // control bits match?
+            if (!((itor->second.m_flag & InsteonLinkEntry::CONTROLLER_MASK ? true : false) ^ isControl)) // control bits match?
             {
                 if (isControl || (ls3 == 0) || (ls3 == itor->second.m_LinkSpecific3))
                 {   // for responders, the ls3 info must match in order to override.
@@ -568,7 +618,7 @@ bool InsteonDevice::amRespondingTo(const InsteonDeviceAddr &addr, unsigned char 
         if ((link.m_flag & InUseFlag) &&
             (link.m_addr == addr) && 
             (link.m_group == group) &&
-            !(link.m_flag & InsteonLinkEntry::CONTROLLER_FLAG ? true : false)
+            !(link.m_flag & InsteonLinkEntry::CONTROLLER_MASK ? true : false)
             )
             return true;
     }
@@ -577,6 +627,8 @@ bool InsteonDevice::amRespondingTo(const InsteonDeviceAddr &addr, unsigned char 
 
 int InsteonDevice::removeLinks(const InsteonDeviceAddr &addr, unsigned char group, bool amController, unsigned char ls3)
 {
+    if (m_SupressLinkTableUpdate)
+        return 0;
     if (m_LinkTable.empty()) 
         return 0;
     for (LinkTable_t::reverse_iterator itor = m_LinkTable.rbegin(); itor != m_LinkTable.rend(); itor++)
@@ -585,29 +637,25 @@ int InsteonDevice::removeLinks(const InsteonDeviceAddr &addr, unsigned char grou
         if ((link.m_flag & InUseFlag) &&
             (link.m_addr == addr) && 
             (link.m_group == group) &&
-            !((link.m_flag & InsteonLinkEntry::CONTROLLER_FLAG ? true : false) ^ amController) &&
+            !((link.m_flag & InsteonLinkEntry::CONTROLLER_MASK ? true : false) ^ amController) &&
             (amController || (ls3 == 0) || (ls3 == link.m_LinkSpecific3)) // responder only matches if ls3 matches as well
             )
         {
                 unsigned char extMsg[EXTMSG_COMMAND_LEN];
                 unsigned int maddr = itor->first;
-                InitExtMsg(extMsg);
-                extMsg[OFFSET_LINK_GROUP] = link.m_group;
-                extMsg[OFFSET_LINK_LS1] = link.m_LinkSpecific1;
-                extMsg[OFFSET_LINK_LS2] = link.m_LinkSpecific2;
-                extMsg[OFFSET_LINK_LS3] = link.m_LinkSpecific3;
+                InitExtMsg(extMsg, CMD_READ_WRITE_LINK_TABLE);
+                memcpy(&extMsg[OFFSET_TO_ADDR], m_addr, sizeof(m_addr));
+                extMsg[OFFSET_D1] = 0;
+                extMsg[OFFSET_D2] = 2;
                 extMsg[OFFSET_D3] = static_cast<unsigned char>(maddr >> 8);
                 extMsg[OFFSET_D4] = static_cast<unsigned char>(maddr);
                 extMsg[OFFSET_D5] = 8;
-
-                memcpy(&extMsg[OFFSET_TO_ADDR], m_addr, sizeof(m_addr));
-                memcpy(&extMsg[OFFSET_LINK_ADDR], link.m_addr, 3);
-                extMsg[OFFSET_LINK_FLAG] = link.m_flag & ~InUseFlag;  // clear the InUseFlag
-                if (itor->first == m_LinkTable.begin()->first) // if removing the link with lowest address
-                    memset(&extMsg[OFFSET_LINK_FLAG], 0, 8);   //...then tell device truncate table here.
-                PlaceCheckSum(extMsg);
+                memset(&extMsg[OFFSET_LINK_FLAG], 0, 8);   //tell device truncate table here unless...
+                if (itor->first != m_LinkTable.begin()->first) // not removing the link with lowest address
+                    extMsg[OFFSET_LINK_FLAG] = link.m_flag & ~InUseFlag;  // clear the InUseFlag
                 m_lastAcqCommand1 = 0;
-                boost::shared_ptr<InsteonCommand> p = m_plm->sendCommandAndWait(extMsg, sizeof(extMsg), 23); 
+                PlaceCheckSum(extMsg);
+                std::shared_ptr<InsteonCommand> p = m_plm->sendCommandAndWait(extMsg, sizeof(extMsg), 23);
                 if (p->m_answerState < 0)
                     return p->m_answerState;
                 else
@@ -615,12 +663,12 @@ int InsteonDevice::removeLinks(const InsteonDeviceAddr &addr, unsigned char grou
                     link.m_flag &= ~InUseFlag;
 
                     // hang around for 5 seconds or until receive an acq, which is first
-                    static const int secondsToWait = 5;
-                    boost::posix_time::ptime start(boost::posix_time::microsec_clock::universal_time());
-                    boost::mutex::scoped_lock l(m_mutex);
-                    while ((m_lastAcqCommand1 != 0x2f) && (boost::posix_time::microsec_clock::universal_time() - start).total_seconds() < secondsToWait)
+                    static const auto secondsToWait = std::chrono::seconds(5);
+                    auto start(std::chrono::steady_clock::now());
+                    std::unique_lock<std::mutex> l(m_mutex);
+                    while ((m_lastAcqCommand1 != 0x2f) && (std::chrono::steady_clock::now() - start) < secondsToWait)
                     {
-                        m_condition.timed_wait(l, boost::posix_time::time_duration(0, 0, secondsToWait));
+                        m_condition.wait_for(l, secondsToWait);
                     }
                 }
         }
@@ -640,6 +688,15 @@ const char InsteonDevice::X10WheelCodeToBits[] =
 
 int InsteonDevice::getX10Code(char &houseCode, unsigned char &unit, unsigned char btn) const
 {
+    enum {
+        EXT_MSG_LENGTH = 23,
+        EXT_D1 = 9,
+        EXT_D2 = 10,
+        EXT_D3 = 11,
+        EXT_D4 = 12,
+        EXT_D5 = 13,
+        EXT_D6 = 14,
+    };
     ExtendedGetResults_t::const_iterator itor = m_ExtendedGetResult.find(btn);
     if (itor == m_ExtendedGetResult.end())
         return -1;
@@ -678,10 +735,9 @@ int InsteonDevice::setX10Code(char houseCode, unsigned char unit, unsigned char 
 int InsteonDevice::sendExtendedCommand(unsigned char btn, unsigned char d2, unsigned char d3, unsigned char d4)
 {
     unsigned char extMsg[EXTMSG_COMMAND_LEN];
-    InitExtMsg(extMsg);
+    InitExtMsg(extMsg, CMD_EXTENDED_GET_SET); // extended Set/Get
     memset(&extMsg[OFFSET_D1], 0, 14);
     memcpy(&extMsg[OFFSET_TO_ADDR], m_addr, sizeof(m_addr));
-    extMsg[OFFSET_CMD1] = 0x2e; // extended Set/Get
     extMsg[OFFSET_CMD2] = 0;  
     extMsg[OFFSET_D1] = btn;
     extMsg[OFFSET_D2] = d2;      // SET command--X10
@@ -690,26 +746,25 @@ int InsteonDevice::sendExtendedCommand(unsigned char btn, unsigned char d2, unsi
     extMsg[OFFSET_D5] = 0;
     extMsg[OFFSET_D6] = 0;
     PlaceCheckSum(extMsg);
-    m_plm->queueCommand(extMsg, sizeof(extMsg), 23); 
+    m_plm->queueCommand(extMsg, sizeof(extMsg), 23);
     return 0;
 }
 
 int InsteonDevice::getProductData() 
 {   // keypad responds. togglelinc does not
-    unsigned char getPd[8] =
-    { 0x02, 0x62, 0, 0, 0, 0xF, 0x3, 0};
+    unsigned char getPd[STDMSG_COMMAND_LEN] =  { 0x02, 0x62, 0, 0, 0, 0xF, 0x3, 0};
     memcpy(&getPd[2], m_addr, 3);
-    boost::mutex::scoped_lock l(m_mutex);
-    boost::posix_time::ptime start(boost::posix_time::microsec_clock::universal_time());
+    std::unique_lock<std::mutex> l(m_mutex);
+    auto start(std::chrono::steady_clock::now());
     m_productData.clear();
-    boost::shared_ptr<InsteonCommand> p = m_plm->queueCommand(getPd, sizeof(getPd), 9);
-    static const int secondsToWait = 5;
+    std::shared_ptr<InsteonCommand> p = m_plm->queueCommand(getPd, sizeof(getPd), 9);
+    static const auto secondsToWait = std::chrono::seconds(5);
     while (m_productData.empty() && 
-        (boost::posix_time::microsec_clock::universal_time() - start).total_seconds() < secondsToWait)
+        (std::chrono::steady_clock::now() - start) < secondsToWait)
     {
-        m_condition.timed_wait(l, boost::posix_time::time_duration(0, 0, secondsToWait));
+        m_condition.wait_for(l, secondsToWait);
     }
-    return m_productData.size();
+    return static_cast<int>(m_productData.size());
 }
 
 int InsteonDevice::truncateUnusedLinks()
@@ -717,7 +772,7 @@ int InsteonDevice::truncateUnusedLinks()
     std::set<unsigned> UnusedLinks;
     LinkTable_t::key_type leastAddr;
     {
-        boost::mutex::scoped_lock l(m_mutex);
+        std::unique_lock<std::mutex> l(m_mutex);
         if (!m_LinkTableComplete) return -2;
         if (m_LinkTable.empty()) return 0;
         leastAddr = m_LinkTable.begin()->first;
@@ -733,7 +788,7 @@ int InsteonDevice::truncateUnusedLinks()
             if (linkToZero >= leastAddr)
                 break;
             unsigned char extMsg[EXTMSG_COMMAND_LEN];
-            InitExtMsg(extMsg);
+            InitExtMsg(extMsg, CMD_READ_WRITE_LINK_TABLE);
             memset(&extMsg[OFFSET_D1], 0, 14);
             extMsg[OFFSET_D2] = 2;
             memcpy(&extMsg[OFFSET_TO_ADDR], m_addr, sizeof(m_addr));
@@ -741,7 +796,7 @@ int InsteonDevice::truncateUnusedLinks()
             extMsg[OFFSET_D4] = static_cast<unsigned char>(linkToZero);
             extMsg[OFFSET_D5] = 8;
             PlaceCheckSum(extMsg);
-            boost::shared_ptr<InsteonCommand> p = m_plm->sendCommandAndWait(extMsg, sizeof(extMsg), 23); 
+            std::shared_ptr<InsteonCommand> p = m_plm->sendCommandAndWait(extMsg, sizeof(extMsg), 23);
             if (p->m_answerState < 0)
             {
                 ret = p->m_answerState;

@@ -31,7 +31,8 @@ namespace w5xdInsteon {
         // a dimmer responder doesn't care about ls3 values
         int removeLink(InsteonDevice *controller, unsigned char group){ return controller->removeLink(this, group, 0);}
     protected:
-        void incomingMessage(const std::vector<unsigned char> &, boost::shared_ptr<InsteonCommand>);
+        enum {   GET_VALUE_TIMEOUT_SECONDS = 8  };
+        void incomingMessage(const std::vector<unsigned char> &, std::shared_ptr<InsteonCommand>);
         bool    m_valueKnown;
         unsigned char m_lastKnown;
         int m_lastQueryCommandId;

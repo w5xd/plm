@@ -1,6 +1,6 @@
 INCLUDES = -I/usr/local/include -I..
 APACHE_DEFINES = -D_REENTRANT -D_GNU_SOURCE
-CC_FLAGS = -O2 -pthread -c -fPIC -DPIC -DLINUX32
+CC_FLAGS = -O2 -pthread -c -fPIC -DPIC -DLINUX32 -std=c++11
 
 OBJECTS = PlmMonitor.o PlmMonitorMap.o PlmMonitorLinux.o PowerLineModule.o \
     Dimmer.o X10Dimmer.o InsteonDevice.o Keypad.o Fanlinc.o
